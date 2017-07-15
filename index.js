@@ -46,7 +46,7 @@ const token = {
   }
 };
 
-let token = process.env.MESSENGER_TOKEN
+let messenger_token = process.env.MESSENGER_TOKEN
 
 app.get('/webhook/', function(req, res) {
 	if(req.query['hub.verify_token'] === "blonde") {
@@ -73,7 +73,7 @@ function sendText(sender, text) {
 	let messageData = {text: text}
 	request({
 		url:"https://graph.facebook.com/v2.6/me/messages",
-		qs: {access_token: token},
+		qs: {access_token: messenger_token},
 		method: "post",
 		json: {
 			recipient: {id: sender},
