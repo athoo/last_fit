@@ -26,7 +26,7 @@ var CreateTable = function(ClientId, AccessToken, RefreshToken, UpdateTime, Prof
     stmt.finalize();
 
     db.each("SELECT Profile FROM Client", function(err, row) {
-        console.log(row.Profile);
+        // console.log(row.Profile);
     });
   });
 

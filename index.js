@@ -51,11 +51,13 @@ let messenger_token = process.env.MESSENGER_TOKEN
 app.get('/webhook/', function(req, res) {
 	if(req.query['hub.verify_token'] === "blonde") {
 		res.send(req.query['hub.challenge'])
-	}
+    console.log('verified!')
+  }
 	res.send("Wrong token")
 })
 
 app.post('/webhook/', function(req, res) {
+  console.log('post to the webhook')
 	let messaging_events = req.body.entry[0].messaging
 	for (let i = 0; i < messaging_events.length; i++) {
 		let event = messaging_events[0];
