@@ -1,0 +1,58 @@
+<!-- views/pages/index.ejs -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <% include ../partials/head %>
+</head>
+
+<body class="container">
+
+    <header>
+        <% include ../partials/header %>
+    </header>
+
+    <main>
+        <div class="container">
+            <div id="dc-data-count"></div>
+            <button class="btn btn-success" style="float:right;" id="planning_page" onclick="location.href='/planning_page'">Schedule exercise Plan</button>
+            </br>
+            <!-- <button id="data-brush" class="btn btn-primary" type="button">Turn on data brush</div> -->
+            <section id="intraday_activity">
+                <strong>Intraday activities by day time.</strong>
+            </section>
+
+            <div id="customizeLabel">
+                <strong>Labels we recommend for your daily life.</strong>
+                <p>In this section, your can select the time interval of the day and label them with your daily activity plan. We will reminder you of the activity at that time.</p>
+                <section id="labels"></section>
+                <section id="addLabel"></section>
+                <section id="taskPlan"></section>
+            </div>
+
+
+
+            <section id="exercise_overview">
+                <strong>Steps per day</strong>
+
+            </section>
+
+            <section id="weekday_view">
+                <strong>Aggregated activities by weekday.</strong>
+            </section>
+
+            <section id="frequency_view">
+                <strong>Your activities barChart.</strong>
+            </section>
+
+        </div>
+    </main>
+
+    <footer>
+        <% include ../partials/footer %>
+    </footer>
+<h1 style="display:none" id="identity"><%= user %></h1>
+</body>
+<script src="/js/main.js"></script>
+</html>

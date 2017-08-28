@@ -1,59 +1,40 @@
 'use strict'
 
 require('dotenv').config();
-const express = require('express')
-const request = require('request')
-const querystring = require('querystring')
-const db_handler = require('./db_handler')
-var moment = require('moment');
-const bodyParser = require('body-parser')
+const express = require('express');
+const querystring = require('querystring');
+// const db_handler = require('./db_handler')
+const moment = require('moment');
+const bodyParser = require('body-parser');
+const getData = require('./getData.js');
+const request = require('request');
+const authorization = require('./authorization.js');
+const botConnector = require('./botConnector.js');
 
+const app = express();
 
-var app = express();
+app.set('port', (process.env.PORT || 5000));
+app.set('views', __dirname + '/views');
+app.set('view engine', 'ejs');
+app.use(express.static(__dirname + 'public'));
+app.use(bodyParser.urlencoded({extended: false}));
+app.use(bodyParser.json());
 
-app.set('port', (process.env.PORT || 5000))
-app.use(bodyParser.urlencoded({extended: false}))
-app.use(bodyParser.json())
+let code = authorization.code;
+let token = authorization.token;
 
-var AUTH_INFO;
-var ACCESS_TOKEN;
-var REFRESH_TOKEN
-var USER_ID
+let AUTH_INFO;
+let ACCESS_TOKEN;
+let REFRESH_TOKEN;
+let USER_ID;
 
-
-const code = {
-  url: 'https://www.fitbit.com/oauth2/authorize',
-  qs: {
-    response_type: 'code',
-    client_id: process.env.CLIENT_ID,
-    redirect_uri: process.env.CALLBACK_URL,
-    expires_in: '604800',
-    scope: 'activity heartrate location nutrition profile settings sleep social weight'
-  }
-}
-
-const token = {
-  headers: {
-    'Authorization': process.env.AUTHORIZATION,
-    'Content-Type': 'application/x-www-form-urlencoded'
-  },
-  url: 'https://api.fitbit.com/oauth2/token',
-  form: {
-    clientId: process.env.CLIENT_ID,
-    grant_type: 'authorization_code',
-    redirect_uri: process.env.CALLBACK_URL,
-    code: ''
-  }
-};
-
-let messenger_token = process.env.MESSENGER_TOKEN
 
 app.get('/webhook/', function(req, res) {
 	if(req.query['hub.verify_token'] === "blonde") {
-		res.send(req.query['hub.challenge'])
-    console.log('verified!')
+		res.send(req.query['hub.challenge']);
+    console.log('verified!');
   }
-	res.send("Wrong token")
+	res.send("Wrong token");
 })
 
 app.post('/webhook/', function(req, res) {
@@ -64,35 +45,15 @@ app.post('/webhook/', function(req, res) {
 		let sender = event.sender.id;
 		if (event.message && event.message.text) {
 			let text = event.message.text
-			sendText(sender, "Hello " + USER_ID)
+			botConnector.sendText(sender, "Hello " + USER_ID)
 		}
 	}
 	res.sendStatus(200)
 })
 
-
-function sendText(sender, text) {
-	let messageData = {text: text}
-	request({
-		url:"https://graph.facebook.com/v2.6/me/messages",
-		qs: {access_token: messenger_token},
-		method: "post",
-		json: {
-			recipient: {id: sender},
-			message: messageData
-		}
-	}, function(error, response, body) {
-		if (error) {
-			console.log("sending error");
-		} else if (response.body.error) {
-			console.log("response body error")
-		}
-	})
-}
-
 // start login
 app.get('/', function(req, res){
-  var code_url = code.url + '?' +querystring.stringify(code.qs)
+  let code_url = code.url + '?' +querystring.stringify(code.qs)
   res.redirect(code_url)
 })
 
@@ -105,32 +66,26 @@ app.get('/callback', function(req,res){
     ACCESS_TOKEN = AUTH_INFO['access_token']
     USER_ID = AUTH_INFO['user_id']
     REFRESH_TOKEN = AUTH_INFO['refresh_token']
-    // console.log(AUTH_INFO)
-    GetProfile(ACCESS_TOKEN, '-')
-    // console.log(GetProfile(ACCESS_TOKEN, '-'))
-    // res.send(GetProfile(ACCESS_TOKEN, '-'))
-    res.redirect(process.env.MESSENGER_URL);
+    var Profile = getData.GetProfile(ACCESS_TOKEN, '-')
+    // res.send(getData.GetProfile(ACCESS_TOKEN, '-'))
+    // res.redirect(process.env.MESSENGER_URL);
+    res.send(Profile)
   });
 })
 
+app.get('/stat', function (req, res) {
+  console.log("this is the /index directory");
+  res.render('pages/index', {user: user_identity});
+
+});
+
+app.get('/planning_page', function (req, res) {
+  console.log("this is the dirname" + __dirname);
+
+  res.render('pages/planning', {user: user_identity});
+});
+
+
 app.listen(app.get('port'), function(){
-  // console.log('the server is running on 5000');
+  console.log('the server is running on 5000');
 })
-
-var GetProfile = function(AccessToken, UserId){
-  const profile = {
-    headers: {
-      'Authorization':' Bearer ' + AccessToken
-    },
-    url: 'https://api.fitbit.com/1/user/'+ UserId +'/profile.json'
-  };
-
-  request.get(profile, function(error, response, body) {
-
-    var Profile = JSON.parse(body)
-
-    db_handler.CreateTable(USER_ID,AccessToken,REFRESH_TOKEN,moment().format(),body)
-    return JSON.parse(body)
-  })
-
-}

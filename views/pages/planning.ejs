@@ -1,0 +1,94 @@
+<!-- views/pages/planning.ejs -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <% include ../partials/head %>
+</head>
+
+<body class="container">
+
+    <header>
+        <% include ../partials/header %>
+    </header>
+
+    <main>
+        <div class="container">
+            <h1>My activity plan</h1>
+            <p class="lead">On this page, I will help you develop you develop an exercise plan for the coming month. Before we start the
+                planning, do you have any specific goal?</p>
+
+            <button type="button" class="btn btn-default" id="no_plan" style="padding:10px 50px; text-align:center; margin:50px">No</button>
+            <button type="button" class="btn btn-success" id="have_plan" style="padding:10px 50px; text-align:center; margin:50px">Yes</button>
+
+
+
+            <div id="user_labels">
+
+            </div>
+
+            <div>
+                <h1>The area is for you to plan your weekday exercise</h1>
+
+                <table class='table table-hover'>
+                    <thead>
+                        <th>Activity</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Duration</th>
+                        <th>Intensity(Steps)</th>
+                    </thead>
+                    <tbody id="weekday" class="connectedSortable">
+                        <tr>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                <h1>The area is for you to plan your weekend exercise</h1>
+
+                <table class='table table-hover'>
+                    <thead>
+                        <th>Activity</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Duration</th>
+                        <th>Intensity(Steps)</th>
+                    </thead>
+                    <tbody id="weekend" class="connectedSortable">
+                        <tr>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+
+                    </tbody>
+                </table>
+
+            </div>
+
+        </div>
+
+
+    </main>
+
+    <footer>
+        <% include ../partials/footer %>
+    </footer>
+
+    <!--<h1 style="display:none" id="identity">52KG66</h1>-->
+
+<h1 style="display:none" id="identity"><%= user %></h1>
+
+</body>
+<script src="/js/planning.js"></script>
+
+</html>

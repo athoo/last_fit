@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nf start",
+    "watch": "nodeman --watch directory-to-watch"
   },
   "author": "",
   "license": "ISC",
@@ -14,6 +16,6 @@
     "express": "^4.15.3",
     "moment": "^2.18.1",
     "request": "^2.81.0",
-    "sqlite3": "^3.1.8"
+    "sqlite3": "^3.1.9"
   }
 }
