@@ -3,8 +3,9 @@
 require('dotenv').config();
 const express = require('express');
 const querystring = require('querystring');
-// const db_handler = require('./db_handler')
+const dbHandler = require('./dbHandler')
 const moment = require('moment');
+const async = require('async')
 const bodyParser = require('body-parser');
 const getData = require('./getData.js');
 const request = require('request');
@@ -29,7 +30,7 @@ let REFRESH_TOKEN;
 let USER_ID;
 
 
-app.get('/webhook/', function(req, res) {
+app.get('/webhook/', function(req, res) {//XZNOTE: toask
 	if(req.query['hub.verify_token'] === "blonde") {
 		res.send(req.query['hub.challenge']);
     console.log('verified!');
@@ -54,24 +55,51 @@ app.post('/webhook/', function(req, res) {
 // start login
 app.get('/', function(req, res){
   let code_url = code.url + '?' +querystring.stringify(code.qs)
+  console.log(code_url)
   res.redirect(code_url)
 })
 
 // return to the facebook messenger page
 app.get('/callback', function(req,res){
-  token.form.code = querystring.parse(req.url)['/callback?code']
-  request.post(token, function(error, response, body) {
+  console.log('USER login')
+  let PARSEDQRY = querystring.parse(req.url)
+  //console.log(PARSEDQRY)
+  token.form.code = PARSEDQRY['/callback?code']  //in fact is not token. it's the code set which would be used to get token
+    //XZ append
+  request.post(token, function(error, response, body) {//post to front-end request
     AUTH_INFO = JSON.parse(body)
-    // console.log(AUTH_INFO['access_token'])
     ACCESS_TOKEN = AUTH_INFO['access_token']
     USER_ID = AUTH_INFO['user_id']
     REFRESH_TOKEN = AUTH_INFO['refresh_token']
-    var Profile = getData.GetProfile(ACCESS_TOKEN, '-')
-    // res.send(getData.GetProfile(ACCESS_TOKEN, '-'))
-    // res.redirect(process.env.MESSENGER_URL);
-    res.send(Profile)
+    console.log('userID: '+USER_ID)        
+    res.send('redirecting')    
   });
-})
+  //res.redirect('/getUserProfile')
+});
+
+app.get('/getUserProfile', function(req,res){
+    console.log('get user profile ...')
+    var Profile = getData.GetProfile(ACCESS_TOKEN, REFRESH_TOKEN, USER_ID)
+});
+
+app.get('/getactivity', function(req,res){
+    console.log('req url:'+req.url)
+    var date = (new Date()).toISOString().split('T')[0]
+    console.log('date is' + date)
+    var activity = getData.Get1dayActSeries3Resources1min(ACCESS_TOKEN, date, USER_ID)
+});
+
+app.get('/insertLabel', function(req,res){
+    var toInsert = [['2017-09-2700:00:00','2017-09-2710:00:00','sleeping'],['2017-09-2709:00:00','2017-09-2713:30:00','swimming']]
+    var toUpdate = [['2017-09-2700:00:00','2017-09-2710:00:00','laughing'],['2017-09-2709:00:00','2017-09-2713:30:00','swimming']]
+    var createEssentialTables = dbHandler.createTables(USER_ID)
+    console.log('insert data for user ' + USER_ID)
+    createEssentialTables.then(()=>{
+        dbHandler.updateLabels(USER_ID, toUpdate)
+    })/*.then((results)=>{
+        dbHandler.updateLabels(USER_ID, toUpdate)
+    })*/
+});
 
 app.get('/stat', function (req, res) {
   console.log("this is the /index directory");
@@ -87,5 +115,5 @@ app.get('/planning_page', function (req, res) {
 
 
 app.listen(app.get('port'), function(){
-  console.log('the server is running on 5000');
+  console.log('the server is running on', app.get('port'));
 })
