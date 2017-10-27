@@ -38,7 +38,7 @@ function updateLostLoginTest(){
 }
 
 function getDataFromLocDB(){
-  var locadata = dbHandler.getActDataFromLocalDB('52KG66', 'steps', '2017-09-23T00:00:00', '2017-10-04:23:59:59',['1','2','3','4','5'])
+  var locadata = dbHandler.getActDataFromLocalDB('52KG66', 'calories', '2017-09-23T00:00:00', '2017-10-04:23:59:59',['1','2','3','4','5'])
   Promise.all([locadata]).then(val=>{
     console.log(val)
   })

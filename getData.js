@@ -41,6 +41,7 @@ exports.saveProfile = function(AccessToken, RefreshToken, UserId){
 //may split the function, update datas column by column
 //this function and the corresponding "get1dayActSeries3Resources1min" one is used for dynamic mechanism
 //(but we won't be able to tell all day 0 step or data of the date not saved at all)
+//
 function get1dayActFromFitbitAPI(AccessToken, date, resource, stime = undefined, etime = undefined) {
     //get calories, steps, as well as distance
     //console.log("date:" + date)
@@ -133,10 +134,10 @@ function getActDataRequestHeader(AccessToken, resourceType, date){
     return dataReq
 }
 
-function fitbitData2arr1Resource(AccessToken,requiredDates,resourceType, hourFilter = ['00:00','23:59']){
+function fitbitData2arr1Resource1day(AccessToken,requiredDates,resourceType, hourFilter = ['00:00','23:59']){
     return new Promise((resolve,reject)=>{
         if (resourceType !== 'steps' && resourceType !== 'calories')
-          reject("err when calling fitbitData2arr1Resource, unsupported resource type!")
+          reject("err when calling fitbitData2arr1Resource1day, unsupported resource type!")
         var toUser = Promise.all(requiredDates.map((date)=>{
             return get1dayActFromFitbitAPI(AccessToken, date, resourceType,hourFilter[0],hourFilter[1])}))
         .then(values => {
@@ -194,16 +195,16 @@ exports.getActDataFromFitbitAPI = function(resourceType, AccessToken, startDate,
         //background operatoin:2.save data of all dates
         var toUser;
         if(!Array.isArray(resourceType)){
-            toUser = fitbitData2arr1Resource(AccessToken,requiredDates,resourceType, hourFilter)
+            toUser = fitbitData2arr1Resource1day(AccessToken,requiredDates,resourceType, hourFilter)
             toUser.then(value=>{resolve(value)})
         }
         else {
-            toUser = fitbitData2arr1Resource(AccessToken,requiredDates,resourceType[0], hourFilter)
+            toUser = fitbitData2arr1Resource1day(AccessToken,requiredDates,resourceType[0], hourFilter)
             if(resourceType.length == 1){
                 toUser.then(value=>{resolve(value)})
             }
             else if(resourceType.length == 2){
-                var toUser2 = fitbitData2arr1Resource(AccessToken,requiredDates,resourceType[1], hourFilter)
+                var toUser2 = fitbitData2arr1Resource1day(AccessToken,requiredDates,resourceType[1], hourFilter)
                 if(resourceType[0] == 'steps'){
                     Promise.all([toUser,toUser2]).then(values=>{
                         resolve(mergeResources(values[0], values[1]))
@@ -222,6 +223,7 @@ exports.getActDataFromFitbitAPI = function(resourceType, AccessToken, startDate,
     })
 }
 /**save full data to local Database, notice that we call fitbit here separately to get FULL data
+ * this function is discarded since it would cause additional data request
  *@param{String} userID, like '52KG66'
  *@param{String} AccessToken, the token we need to pass to fitbit API
  *@param{Date} startDate, start date of the time period that we want to get data, included
@@ -231,15 +233,67 @@ exports.getActDataFromFitbitAPI = function(resourceType, AccessToken, startDate,
 exports.saveFitbitAct2Local = function(userID, AccessToken, startDate, endDate = (new Date()).toISOString().split('T')[0]){
     return new Promise((resolve, reject) => {
       var requiredDates = utils.dayFilter(startDate, endDate, [])
-      var stepsData = fitbitData2arr1Resource(AccessToken,requiredDates,'steps')
-      var caloriesData = fitbitData2arr1Resource(AccessToken,requiredDates,'calories')
+      var stepsData = fitbitData2arr1Resource1day(AccessToken,requiredDates,'steps')
+      var caloriesData = fitbitData2arr1Resource1day(AccessToken,requiredDates,'calories')
       Promise.all([stepsData,caloriesData]).then(values=>{
           var concatened = (mergeResources(values[0], values[1]))
           console.log('start writing to DB')
           return dbHandler.save2DB(userID, 'activity',2, concatened)
       }).catch(reason=>{  console.log('reason in saveFitbitAct2Local'+reason) })
       .then(() => {
-            resolve()
+            resolve(concatened)
           })
+    })
+}
+
+/**
+* This is a fake function since "If your application has the appropriate access, your calls to a time series endpoint for a specific day (by using start and end dates on the same day or a period of 1d), the response will include extended intraday values with a 1-minute detail level for that day."
+*/
+exports.getActInPeriodFromFitbitAPI = function(AccessToken, userID, sdate, edate, resource, stime = undefined, etime = undefined) {
+    //get calories, steps, as well as distance
+    //console.log("date:" + date)
+    return new Promise((resolve, reject) => {
+        var time = ''
+        stime = '10:00'
+        etime = '16:00'
+        if(typeof(stime)==='string' && typeof(etime)==='string'){
+            var hhmmRegEx = new RegExp(/^([01]\d|2[0-3]):([0-5]\d)$/);//time should follow the patter HH:MM
+            if(stime.match(hhmmRegEx) && etime.match(hhmmRegEx)){
+                time = '/time/'+stime+'/'+etime
+            }
+        }
+        //console.log('time pattern' + time);
+        dataReq = {
+          headers: {
+            'Authorization':' Bearer ' + AccessToken
+          },
+          url: 'https://api.fitbit.com/1/user/-/activities/'+resource+'/date/'+sdate+'/'+edate+'/1min'+time+'.json'
+        };
+
+        console.log(dataReq.url)
+        request.get(dataReq, function(error, response, body) {
+          if(error){
+              reject(error)
+          }
+          var dataArray = []
+          var data = JSON.parse(body)
+          console.log(data)
+          try{
+            var series = data['activities-'+resource+'-intraday']['dataset']
+            for(var itr = 0; itr < series.length; itr++) {
+                ((itr)=>{
+                    if(series[itr]['value'] > 0){
+                       dataArray.push([date+'T'+series[itr]['time'],series[itr]['value']])
+                    }
+                })(itr)
+            }
+            //console.log('in-- '+resource+' length:'+dataArray.length + 'data example:\n')
+            resolve(dataArray);
+          } catch(err){
+            console.log('err when calling ' + dataReq.url)
+            console.log('body is '+body)
+            resolve([])//here might get error:too many requests, since each user is allowed 150 requests every hour
+          }
+        });
     })
 }

@@ -101,28 +101,26 @@ app.get('/getUserProfile', function(req,res){
 });
 
 //TODO we cannot make sure all data of date before lastLogin saved , if it was long long ago
-//http://localhost:5000/getactivity?userid=52KG66&resourceType=steps&daysBefore=2&today=2017-10-01
+//http://localhost:5000/getactivity?userid=52KG66&daysBefore=2&today=2017-10-01
 app.get('/getactivity', function(req,res){
     let PARSEDQRY = querystring.parse(req.url.split('?')[1])
     var userID = PARSEDQRY['userid']
     var daysBefore = PARSEDQRY['daysBefore']
-    var resourceType = PARSEDQRY['resourceType']
-		var daysFilter = PARSEDQRY['daysFilter']
+    var resourceType = ['steps','calories']// since we get all resource type, and LET THE FRONT END DO THE FILTERING, we won't pick up a single one here
+	//	var daysFilter = PARSEDQRY['daysFilter']
 		var today = new Date(PARSEDQRY['today'])
 		today = today.toISOString().split('T')[0]
 		//var hoursFilterStart = PARSEDQRY['startTime']
 		//var hoursFilterEnd = PARSEDQRY['endTime']
-    //console.log(PARSEDQRY)
-    //console.log('req url:'+req.url)
     var yesterday = new Date(PARSEDQRY['today'])
     yesterday.setDate(yesterday.getDate() - 1)
     yesterday = yesterday.toISOString().split('T')[0]
     var aMonAgo = new Date(PARSEDQRY['today'])
     aMonAgo.setDate(aMonAgo.getDate() - daysBefore)
     aMonAgo = aMonAgo.toISOString().split('T')[0]
-    //should get from url
 		console.log('yesterday is ' + yesterday + 'aMonAgo is ' + aMonAgo)
-    var dayFilter = daysFilter === 'weekends' ? [6,0] : (daysFilter === 'weekdays' ? [1,2,3,4,5] : [])
+//    var dayFilter = daysFilter === 'weekends' ? [6,0] : (daysFilter === 'weekdays' ? [1,2,3,4,5] : [])
+		var dayFilter = [] // we do the filtering on frontend
     var hourFilter = ['11:00','14:30']//[hoursFilterStart,hoursFilterEnd]
 
     var lastLogin = dbHandler.getLastLogin(userID)//could be a date or a label meaning "1st time, no data saved"
@@ -139,20 +137,22 @@ app.get('/getactivity', function(req,res){
 				console.log(`savedAct : [${aMonAgo}, ${values[1]}), online data from [${unsavedStartDate}, ${today})`)
 				var savedAct = dbHandler.getActDataFromLocalDB(userID, resourceType, aMonAgo,values[1],dayFilter, hourFilter)
 				//get data and save through background operation, unsavedDates to render to user at once, but need to save all data (as opposed to filtered dates)
-        var newAct = getData.getActDataFromFitbitAPI(resourceType, values[0], unsavedStartDate, today, dayFilter, hourFilter)
+        var newAct = getData.getActDataFromFitbitAPI(['steps','calories'], values[0], unsavedStartDate, today, dayFilter, hourFilter)
 				//considering that we want to give data to user as soon as possible, we do the save-newly-fetch-data separately
         Promise.all([savedAct, newAct]).then(vals=>{
 					if(vals[0] == undefined) {
-							console.log('no saved data:' + vals[0])
+							console.log('trie to get saved data, but undefined returned:' + vals[0])
 							res.send(vals[1])
-					} else {
+					} else {//if no saved data,vals[0] should be [] here
 						  res.send(vals[0].concat(vals[1]));
 					}
             //res.send(vals[0].concat(vals[1]));
         }).catch(reason=>{console.log('err when wait for savedAct and newAct'+reason)})
 				//if lastLogin == today, then unsavedStartDate == today, so in saveFitbitAct2Local, no date would be filtered out
-        lastLogin.then(()=>{
-					return getData.saveFitbitAct2Local(userID, values[0], unsavedStartDate, today);
+        Promise.all([lastLogin,newAct]).then((vals)=>{
+					console.log('tosave')
+					console.log(vals[1])
+					return dbHandler.save2DB(userID, 'activity',2, vals[1]);
 				}).then(()=>{
 					console.log('start updating lastLogin')
 					dbHandler.updateLastLogin(userID,today);
@@ -175,7 +175,7 @@ app.get('/insertLabel', function(req,res){
 //get data from Fitbit API
 //test what if startDate > endDate
 //http://localhost:5000/getactFitbitAPI?userid=52KG66&resourceType=calories
-app.get('/getactFitbitAPI', function(req,res){
+app.get('/getactFitbitAPIusing1dayfunc', function(req,res){
     let PARSEDQRY = querystring.parse(req.url.split('?')[1])
     var userID = PARSEDQRY['userid']
     var resourceType = PARSEDQRY['resourceType']
@@ -194,6 +194,29 @@ app.get('/getactFitbitAPI', function(req,res){
         })
     })
 });
+
+//get data from Fitbit API
+//test what if startDate > endDate
+//http://localhost:5000/getactFitbitAPI?userid=52KG66&resourceType=calories
+app.get('/getactFitbitAPIcontinuous', function(req,res){
+    let PARSEDQRY = querystring.parse(req.url.split('?')[1])
+    var userID = PARSEDQRY['userid']
+    var resourceType = PARSEDQRY['resourceType']
+		var daysFilter = PARSEDQRY['daysFilter']
+		var startDate = '2017-09-29'
+		var endDate = '2017-09-30'
+    var tok = dbHandler.getToken(userID)//access token
+    tok.then((value)=>{
+				var newAct = getData.getActInPeriodFromFitbitAPI(value, userID, startDate, endDate, resourceType)
+        //console.log('access token:' + value)
+        //var act = getData.get1dayActFromFitbitAPI(value, '2017-10-01', 'steps','07:00', '23:10')
+        newAct.then((value)=>{
+						console.log('getactFitbitAPI data dim' + value.length)
+            console.log(value)
+        })
+    })
+});
+
 
 app.get('/stat', function (req, res) {
   console.log("this is the /index directory");
