@@ -41,6 +41,15 @@ exports.dayCompFilter = function (startDate, endDate, dayFilter){
     return dates;
 }
 
+/**@param{Array} acrArr 2d-array, ["2017-09-29T11:48:00",5.0767998695373535,40]
+*/
+exports.filterOnActArr = function (arr,timeFilter = ['00:00:00','23:59:59']){
+  var filtered = arr.filter(function(t){
+    let hrs = t[0].split('T')[1];
+    return hrs >= timeFilter[0] && hrs <= timeFilter[1];
+  });
+  return filtered;
+}
 //var dates = dayFilter('2017-10-01','2017-10-15',[2,4,6])
 //console.log(dates)
 exports.trav = trav;
