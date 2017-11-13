@@ -95,26 +95,26 @@ exports.save2DB = function(userID, tableName,tableType, data){//dbName,tableName
     })
 }
 
-exports.queryLabels = function(userID, timeStart, timeEnd){
+exports.queryLabels = function(userID){
     return new Promise((resolve, reject) => {
         let db = new sqlite3.Database('./db/'+userID+'.db', (err) => {//are we processing all data in a batch? or should avoid open-close cost
             if (err) {
-                reject(err);
-                console.log('No user data for userID: '+userID);
+                reject(`No user data for userID: ${userID}` + err);
+                console.log();
             }
+            console.log('linked to DB of ' + userID + ' to check labels');
         });
-
-        let sql = `SELECT startTime stime, endTime etime, labelName cats
-                   FROM labels
-                   WHERE startTime >= ? AND endTime <= ?`;//TODO should return intersection? or as long as overlapping would be ok?
-
+//startTime, endTime, labelName, totalSteps, totalCals, subjectiveNotes
+        let sql = `SELECT startTime stime, endTime etime, labelName lbl, totalSteps ttstp, totalCals cal, subjectiveNotes subj
+                   FROM labels`;//
+                   //WHERE startTime >= ? AND endTime <= ?`;//TODO should return intersection? or as long as overlapping would be ok?
         var actList = new Array();
-        db.each(sql, [timeStart, timeEnd], (err, row) => {
+        db.each(sql, [], (err, row) => {
           if (err) {
             reject(err);
           }
-          //console.log(`${row.time}, ${row.cal}, ${row.steps}`)
-          actList.push([row.stime,row.etime,row.cats])
+        //  console.log(row);
+          actList.push([row.stime,row.etime,row.lbl,row.ttstp,row.cal,row.subj])
         }, ()=>{
             db.close();
             console.log('query result, in total '+actList.length+' records')
@@ -134,7 +134,6 @@ exports.queryLabels = function(userID, timeStart, timeEnd){
   */
 exports.updateLabels = function(userID, toUpdate){//TODO how to deal with multiple label?
 //queryLabels in single entry format, this is in batch processing format
-
     return new Promise((resolve, reject) => {
         var tableType = 3;
         createTables(userID, tableType, 'labels').then(()=>{

@@ -183,19 +183,19 @@ app.post('/insertLabel', function(req,res){
 				cal = label.cals,
 				subj = label.subjTag;
 		dbHandler.updateLabels(userID, [[sTime, eTime, lblN, steps, cal, subj]]).then(()=>{
+			res.send('ok, label saved');
+			res.end();
 			console.log('new label recorded');
 		}).catch(reason=>{console.log('failed to record new label: ',reason)});
-		//let parsed =
-	//  let PARSEDQRY = querystring.parse(req.url.split('?')[1]);
-	//	var userID = PARSEDQRY['userid'];
-    /*var toInsert = [['2017-09-27T00:00:00','2017-09-27T10:00:00','sleeping',19,78.6,'sound'],['2017-09-27T09:00:00','2017-09-27T13:30:00','swimming',30,200.57,'relaxing']]
-    var toUpdate = [['2017-09-27T00:00:00','2017-09-27T10:00:00','laughing',0,7.8,'happy'],['2017-09-27T09:00:00','2017-09-27T13:30:00','gaming',30,200.5,'feel lucky']]
-    //var createEssentialTables = dbHandler.createTables(USER_ID)
-    console.log('insert data for user ' + userID)
-    dbHandler.updateLabels(userID, toInsert)
-    .then(()=>{
-        dbHandler.updateLabels(userID, toUpdate)
-    })*/
+});
+
+app.get('/getLabel',function(req,res){
+	dbHandler.queryLabels(req.query.user_id).then(val=>{
+	//	console.log(val);
+		res.send(val);
+		res.end();
+		//return val;
+	}).catch(reason=>{ console.log('fail to get labels: ', reason); });
 });
 
 //get data from Fitbit API

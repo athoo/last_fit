@@ -164,15 +164,31 @@ var data = d3.json(getStatUrl,
         //.rangeMonth([9,10])
         .renderTitle(true);
 
-		var generateLabels = function () {
+		var generateLabels = function (user_id) {
+			console.log(user_id);
 			$('#labels').empty();
 			$('#addLabel').empty();
-			for (item in activityLabels) {
-				$('#labels').append("<button class='btn btn-primary life-label' style='margin:5px;'>" + activityLabels[item] + "</button>");
-			}
+			$.get('http://localhost:5000/getLabel', {'user_id': user_id}, function (data) {
+				//console.log(data[0]);
+				//console.log(data.length);
+				for (item in data) {
+					var labelInfo = data[item];
+					//TODO a brief version, only show labelInfo[2][0], not concatened labelInfo[2] items
+					labelName = JSON.parse(labelInfo[2])[0];
+					subjFeel = JSON.parse(labelInfo[5])[0];
+					$('#labels').append("<button class='btn btn-primary life-label' style='margin:5px;'>"
+					 + `${labelName},\nin total ${labelInfo[3]} steps,\n
+					 consuming around ${labelInfo[4]} calorie,\n feeling ${subjFeel}` + "</button>");
+				}
+			});
+
+
 			$('#addLabel').append("<input type='text' id='newLabel' placeholder='Walking to Siebel' style='margin:5px;'></input>");
 			$('#addLabel').append("<input type='text' id='subjTag' placeholder='refreshing' style='margin:5px;'> </input> ");
 			$('#addLabel').append("<input type='button' class='btn' id='submitLabel' value='Submit New Label'></input>");
+			/*for (item in activityLabels) {
+				$('#labels').append("<button class='btn btn-primary life-label' style='margin:5px;'>" + activityLabels[item] + "</button>");
+			}*/
 		}
 
 		var uploadLabel = function (user_id, periodStart, periodEnd, labelName, duration, accumSteps, accumCals, subjTag) {
@@ -188,9 +204,10 @@ var data = d3.json(getStatUrl,
 			}
 
 			$.post('http://localhost:5000/insertLabel', label, function (data) {
-				console.log(data.user_id);
-				console.log(data.duration);
-			}, "json");
+				console.log(data);
+				generateLabels(user_id);
+				//console.log(data.duration);
+			});
 		}
 
 
@@ -256,7 +273,7 @@ var data = d3.json(getStatUrl,
 			.x(d3.time.scale().domain(['00:00:00', '23:59:59']))
 			.on('renderlet', function (chart) {
 
-				generateLabels();
+				generateLabels(id);
 
 				//console.log(chart.brush().extent());
 
@@ -296,9 +313,9 @@ var data = d3.json(getStatUrl,
 				$('#submitLabel').on('click', function () {
 					if ($('#newLabel').val().match(/\S/) && periodStart !== "06:00:00 AM" && periodEnd !== "10:00:00 PM") {
 						activityLabels.push($('#newLabel').val());
-						$('#labels').append("<button class='btn btn-primary life-label' style='margin:5px;'>" + $('#newLabel').val() + "</button>");
+						//TODO don't display at once. how to use promise with ajax post?
+						//$('#labels').append("<button class='btn btn-primary life-label' style='margin:5px;'>" + $('#newLabel').val() + "</button>");
 						uploadLabel(id, periodStart, periodEnd, $('#newLabel').val(), duration, accumSteps, accumCals, $('#subjTag').val());
-
 					} else {
 						alert("Please type in the activity before hit the submit button!");
 					}
