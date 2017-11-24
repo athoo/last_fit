@@ -32,6 +32,11 @@ let ACCESS_TOKEN;
 let REFRESH_TOKEN;
 let USER_ID;
 
+app.get('/testtesttest/', function(req, res) {// test
+    res.writeHead(200, {"Content-Type": "text/plain"});
+    res.end("Hello World!");
+})
+
 
 app.get('/webhook/', function(req, res) {//XZNOTE: toask
 	if(req.query['hub.verify_token'] === "blonde") {
