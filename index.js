@@ -55,7 +55,7 @@ app.post('/webhook/', function(req, res) {
 	res.sendStatus(200)
 })
 
-// start login
+// start login TODO delete plan of one week ago
 app.get('/', function(req, res){
   let code_url = code.url + '?' +querystring.stringify(code.qs)
   console.log('logged in. redirect to :'+code_url)
@@ -76,7 +76,8 @@ app.get('/callback', function(req,res){
     USER_ID = AUTH_INFO['user_id'];
     REFRESH_TOKEN = AUTH_INFO['refresh_token'];
     getData.saveProfile(ACCESS_TOKEN, REFRESH_TOKEN, USER_ID).then(()=>{
-			res.render('pages/index', {user: USER_ID, port:app.get('port')});
+			console.log("saving files...");
+			res.render('pages/stats', {user: USER_ID, port:app.get('port')});
 			//console.log('SHOULD have saved Profiles now!');
 			//res.redirect('http://localhost:5000/getactivity?userid=52KG66&daysBefore=2&today=2017-10-01');
 		})
@@ -162,10 +163,13 @@ app.get('/getactivity', function(req,res){
 					console.log(vals[1].length + " items")
 					return dbHandler.save2DB(userID, 'activity',2, vals[1]);
 				}).then(()=>{
-					console.log('start updating lastLogin')
-					if(lastLogin < today){
-						dbHandler.updateLastLogin(userID,today);
-					}
+					lastLogin.then(val=>{
+						console.log('start updating lastLogin')
+						console.log(val, today)
+						if(val < today){
+							dbHandler.updateLastLogin(userID,today);
+						}
+					}).catch(reason=>{console.log('lastLogin lost when try to update it!')})
 				}).catch(reason=>{
 					console.log('error when try to save data and update the lastLogin '+reason)
 				})
@@ -196,6 +200,45 @@ app.get('/getLabel',function(req,res){
 		res.end();
 		//return val;
 	}).catch(reason=>{ console.log('fail to get labels: ', reason); });
+});
+
+	//http://localhost:5000/getPlan?userID=52KG66&sdate=2017-10-08&edate=2017-10-15&planset=A
+//startTime, endTime, planLblName(cal/minute), aveIntensity, planSet
+app.get('/getPlan',function(req,res){
+	let PARSEDQRY = querystring.parse(req.url.split('?')[1])
+	var userID = PARSEDQRY['userID']
+	var startTime = PARSEDQRY['sdate']+'T00:00:00'
+	var endTime = PARSEDQRY['edate']+'T00:00:00'
+	var planSet = PARSEDQRY['planset']
+	//TODO eliminate planset!
+	console.log(startTime, endTime, planSet)
+	dbHandler.getPlan(userID,startTime, endTime, planSet).then(vals=>{
+		console.log(vals)
+		res.send(vals)
+	}).catch(reason=>{console.log('getting plan failed')})
+});
+
+//http://localhost:5000/setPlan?userID=52KG66
+app.post('/setPlan',function(req,res){
+	/*let PARSEDQRY = querystring.parse(req.url.split('?')[1])
+	var userID = PARSEDQRY['userID']
+	var plans = [['2017-10-10T09:00:00','2017-10-10T09:43:00','running to Siebel',20.25,'A'],
+	['2017-10-11T10:30:00','2017-10-11T11:15:00','swimming 800m',80.9,'A'],
+	['2017-10-12T15:00:00','2017-10-12T16:23:00','shopping for ingredients',12.0,'A'],
+	['2017-10-12T08:00:00','2017-10-12T09:15:00','ride to Mackinley with squirrels',23.0,'A'],
+	['2017-10-12T17:00:00','2017-10-12T18:23:00','shopping for ingredients',12.0,'B']]*/
+	//req.connection.setTimeout( 1000 * 60 );
+	console.log('recording plan...')
+	var plan = (req.body);
+	console.log(plan)
+	var userID = plan.userID,
+	date = plan.date,
+	planArr = JSON.parse(plan.data);
+
+	dbHandler.setPlan(userID, planArr, date).then(()=>{
+		res.send('ok, plan updated');
+		res.end();
+	}).catch(reason=>{console.log('failed to record new label: ',reason)});
 });
 
 //get data from Fitbit API
@@ -243,7 +286,6 @@ app.get('/getactFitbitAPIcontinuous', function(req,res){
     })
 });
 
-
 app.get('/stat', function (req, res) {
   console.log("this is the /index directory");
   res.render('pages/index', {user: user_identity});
@@ -251,9 +293,8 @@ app.get('/stat', function (req, res) {
 });
 
 app.get('/planning_page', function (req, res) {
-  console.log("this is the dirname" + __dirname);
-
-  res.render('pages/planning', {user: user_identity});
+  console.log("planning ... this is the dirname" + __dirname);
+	res.render('pages/planning', {user: USER_ID, port:app.get('port')});
 });
 
 

@@ -18,7 +18,7 @@ var port = $("#portNo").text();
 // console.log(data_summary[0,10]);
 // console.log(typeof(JSON.parse(data_summary)));
 
-var getStatUrl = `http://localhost:${port}/getactivity?userid=52KG66&daysBefore=4&today=2017-10-03`;
+var getStatUrl = `http://localhost:${port}/getactivity?userid=52KG66&daysBefore=4&today=2017-10-05`;
 console.log(getStatUrl);
 var data = d3.json(getStatUrl,
 	function (error, dataArr) {
@@ -72,29 +72,7 @@ var data = d3.json(getStatUrl,
 				all: 'All records selected. Please click on the graph to apply filters.'
 			});
 
-/*			var monthOfTheYearDimension = exs.dimension(function(d) { return [d.weekDay, d.weekInMon]; }),
-			percentageGainByMonthOfYearGroup = monthOfTheYearDimension.group().reduceSum(function (d) {
-				return d.steps_value;
-			});
-
-		var heatColorMapping = d3.scale.linear()
-            .domain([-50000, 0, 50000])
-            .range(["red", "#e5e5e5", "green"]);
-    heatmapChart
-            .width(12 * 80 + 80)
-            .height(27 * 10 + 40)
-            .dimension(monthOfTheYearDimension)
-            .group(percentageGainByMonthOfYearGroup)
-            .keyAccessor(function(d) { return d.key[0]; })
-            .valueAccessor(function(d) { return d.key[1]; })
-            .colorAccessor(function(d) { return d.value; })
-            .title(function(d) {
-                return "  Aggregated Steps Num:    " + d.value;})
-            .colors(heatColorMapping);
-    heatmapChart.xBorderRadius(0);
-    heatmapChart.yBorderRadius(0);
-
-    heatmapChart.render();*/
+/*
 
 		/*exerciseOverview
 			.width(width).height(200)
@@ -143,7 +121,7 @@ var data = d3.json(getStatUrl,
 				return p;
 			},
 			()=>{
-				return {stepAll:0, cals:0};
+				return {stepAll:0, calAll:0};
 			}
 		);
 		/*Sum((d)=>{
@@ -162,11 +140,14 @@ var data = d3.json(getStatUrl,
             return p[0].value.stepAll;
         })
         //.rangeMonth([9,10])
-        .renderTitle(true);
+        .renderTitle(true).filter(maxDate);
+
+		//mothChart,week,
+		//$(#)/.empty
 
 		var generateLabels = function (user_id) {
 			console.log(user_id);
-			$('#labels').empty();
+			$('#labels').empty();//
 			$('#addLabel').empty();
 			$.get('http://localhost:5000/getLabel', {'user_id': user_id}, function (data) {
 				//console.log(data[0]);
@@ -203,7 +184,7 @@ var data = d3.json(getStatUrl,
 				'subjTag':subjTag
 			}
 
-			$.post('http://localhost:5000/insertLabel', label, function (data) {
+			$.post(`http://localhost:${port}/insertLabel`, label, function (data) {
 				console.log(data);
 				generateLabels(user_id);
 				//console.log(data.duration);
@@ -297,15 +278,19 @@ var data = d3.json(getStatUrl,
 				}, 0);
 				console.log(accumCals);
 
-				intradayDim.filterAll();//must add this!the above 2 lines influence the filter itself!
+				intradayDim.filterAll();//must add this!the above 2 lines influence the filter itself! use console.log(intradayDim.top(Infinity)) to test
 
 				var periodStart = new Date(selectedDate);
-				//periodStart.setDate(selectedDate.getDate());
+				//console.log(periodStart.toISOString(),p_start_time.toISOString(),p_start_time.toLocaleTimeString());
 				periodStart.setHours(p_start_time.getHours());
+				periodStart.setMinutes(p_start_time.getMinutes());
+				periodStart.setSeconds(p_start_time.getSeconds());
 
 				var periodEnd = new Date(selectedDate);
 				//periodEnd.setDate(selectedDate.getDate());
 				periodEnd.setHours(p_end_time.getHours());
+				periodEnd.setMinutes(p_end_time.getMinutes());
+				periodEnd.setSeconds(p_end_time.getSeconds());
 		//		var periodEnd = end_time.toLocaleTimeString();
 				console.log('from ', p_start_time, 'to ', p_end_time);
 				var duration = Math.round((p_end_time - p_start_time)/(1000*60));

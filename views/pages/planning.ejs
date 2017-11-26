@@ -22,7 +22,19 @@
             <button type="button" class="btn btn-default" id="no_plan" style="padding:10px 50px; text-align:center; margin:50px">No</button>
             <button type="button" class="btn btn-success" id="have_plan" style="padding:10px 50px; text-align:center; margin:50px">Yes</button>
 
+            <section id="plan_calendar_view">
+                <strong>My Plan Calendar</strong>
+            </section>
 
+            <section id="submit_plan_btn"></section>
+
+            <section id="plan_intra_day">
+                <!--<strong>My Intraday Plan</strong>-->
+            </section>
+
+            <div id="customizeLabel">
+                <section id="labels"></section>
+            </div>
 
             <div id="user_labels">
 
@@ -87,6 +99,7 @@
     <!--<h1 style="display:none" id="identity">52KG66</h1>-->
 
 <h1 style="display:none" id="identity"><%= user %></h1>
+<h1 style="display:none" id="portNo"><%= port %></h1>
 
 </body>
 <script src="/js/planning.js"></script>

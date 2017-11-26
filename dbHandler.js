@@ -7,7 +7,8 @@ const utils = require('./utils')
 var schemaAndColName = [['(userID PRIMARY KEY, accTok, refTok)','(userID, accTok, refTok)','(?, ?, ?)'],
                         ['(dataType PRIMARY KEY, val)','(dataType, val)','(?, ?)'],
                         ['(time PRIMARY KEY, calories, steps)','(time, calories, steps)','(?, ?, ?)'],
-                        ['(startTime, endTime, labelName, totalSteps, totalCals, subjectiveNotes, PRIMARY KEY (startTime, endTime))','(startTime, endTime, labelName, totalSteps, totalCals, subjectiveNotes)','(?, ?, ?, ?, ?,?)']]
+                        ['(startTime, endTime, labelName, totalSteps, totalCals, subjectiveNotes, PRIMARY KEY (startTime, endTime))','(startTime, endTime, labelName, totalSteps, totalCals, subjectiveNotes)','(?, ?, ?, ?, ?,?)'],
+                        ['(startTime, endTime, planLblName, aveIntensity, planSet, PRIMARY KEY (startTime, endTime, planSet))','(startTime, endTime, planLblName, aveIntensity, planSet)','(?,?,?,?,?)']]
 //pay attention to schema name! should first write all other column names if want to use PRIMARY KEY (colA, colB)
 
 //TODO here we actually open->create tables->close, and after in the voking function open again. improve with callback function format
@@ -44,7 +45,7 @@ function createTables (userID, tableType, tableName){
 }
 
 //for activity, we want to first check date, then
-exports.save2DB = function(userID, tableName,tableType, data){//dbName,tableName,tableType mode(0,1,2), data
+function save2DB(userID, tableName,tableType, data){//dbName,tableName,tableType mode(0,1,2), data
     //datatype should be a concatenated one got in corresponding getData module
     return new Promise((resolve, reject) => {
     //    var schema = schemaAndColName[tableType][0]
@@ -94,6 +95,8 @@ exports.save2DB = function(userID, tableName,tableType, data){//dbName,tableName
       })
     })
 }
+
+exports.save2DB = save2DB;
 
 exports.queryLabels = function(userID){
     return new Promise((resolve, reject) => {
@@ -438,6 +441,7 @@ exports.getActDataFromLocalDB = function(userID, resourceType, startDay, endDay,
     })
 }
 
+//currently useless
 exports.getMemberSinceDate = function(userID){
     return new Promise((resolve, reject)=>{
         let db = new sqlite3.Database('./db/'+userID+'.db', (err) => {
@@ -461,4 +465,67 @@ exports.getMemberSinceDate = function(userID){
           }
         });
     })
+}
+
+//['(startTime, endTime, planLblName, aveIntensity, planSet, PRIMARY KEY (startTime, endTime, planSet))','startTime, endTime, planLblName, aveIntensity, planSet','(?,?,?,?,?)']
+//every plan with following format:startTime, endTime, planLblName(cal/minute), aveIntensity, planSet
+exports.getPlan = function(userID,startTime, endTime, planSet){
+  console.log(`get plan of ${userID} from ${startTime} to ${endTime}`)
+  return new Promise((resolve,reject)=>{
+      var res = []
+      if (startTime > endTime){
+          resolve(res)
+      }
+      let db = new sqlite3.Database('./db/'+userID+'.db', (err) => {
+          if (err) {
+              reject('No user data for userID: ' + userID + err);
+          }
+      });
+      var paramArr = [startTime, endTime, planSet];
+      var queryCols = 'startTime stime, endTime etime, planLblName pln, aveIntensity itst, planSet pset'
+
+      let sql = `SELECT ${queryCols}
+                 FROM plan
+                 WHERE stime >= ? AND etime < ? AND pset == ?`
+
+
+  //    console.log('sql statement is : '+sql)
+  //    console.log('select params: '+paramArr)
+      db.each(sql,paramArr, (err, row) => {
+          if(err){
+              console.log('error displaying formatted time'+err)
+          }
+          if(row) {
+              console.log(row)
+              res.push([row.stime,row.etime,row.pln, row.itst,row.pset])
+          }
+      },()=>{
+          db.close((err)=>{
+            console.log('data read from local DB, reslength == '+res.length)
+            resolve(res);
+          });
+      });
+  })
+}
+
+exports.setPlan = function(userID, planArr, date){
+  return new Promise((resolve,reject)=>{
+    createTables(userID, 4, 'plan').then(()=>{
+      let db = new sqlite3.Database('./db/'+userID+'.db');//no worry db wrong
+      let sql = `DELETE FROM plan WHERE date(startTime) == ?`;//
+                 //WHERE startTime >= ? AND endTime <= ?`;//TODO should return intersection? or as long as overlapping would be ok?
+      db.each(sql, date, (err) => {
+        if (err) {reject(err);}
+      }, ()=>{
+          db.close();
+        //  console.log('before return');
+          if(planArr.length !== 0){
+              save2DB(userID, 'plan', 4, planArr).then(()=>{resolve();});
+          } else {
+              resolve();
+          }
+      })
+    }).catch(reason=>{reject('err checking data in createTables' + reason)});
+  })
+  //console.log('quit from set plan');
 }

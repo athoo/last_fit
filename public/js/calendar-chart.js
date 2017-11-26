@@ -10,6 +10,8 @@ var width = 900,
 	_chart.DESELECTED_CLASS = "day-deselected";
 	_chart.OFFSET = 20;
 	_chart.range = d3.range(thisYear, thisYear + 1);
+	_chart.currDate = new Date();
+	_chart.CLICKOnNoData = false;
 
 var day = d3.time.format("%w"),
 	week = d3.time.format("%U"),
@@ -29,7 +31,7 @@ var dowMap = {
 
 _chart._doRedraw = function() {
 	_chart._doRender();
-	_highlightFilters();
+
 	return _chart;
 };
 
@@ -114,7 +116,20 @@ _chart._doRender = function () {
 		.attr("class", function(d) {
 			var date = simpleDate(d);
 			return "day " + color(data[date]); })
-		.on('click', onClick);
+				.on('click', onClick);
+
+	if(_chart.CLICKOnNoData){
+	//	console.log(_chart.clickOnNoData);
+		rect.filter(function(d) {
+				var date = simpleDate(d);
+				return !(date in data);
+			})
+			.attr("class", function(d) {
+				var date = simpleDate(d);
+				return "day " + color(data[date]); })
+					.on('click', onClickNoData);
+	}
+
 		// .attr("data-ot",function(d){
 		// 	var date = simpleDate(d);
 		// 	return d + ": " + data[date].toFixed(2) + " Daily Average";
@@ -127,19 +142,34 @@ _chart._doRender = function () {
 		.select("title")
 		.text(function(d) {
 			var date = simpleDate(d);
-			return date + ": " + data[date] + " steps";
+			return date + ": " + data[date] + " cals";
 		});
 	}
+	_highlightFilters();//ZX note : must do it here, shouldn't render only in redraw
 	return _chart;
 };
 
 function onClick(d, i) {
 	var dateClicked = simpleDate(d);
+	_chart.currDate = dateClicked;
+	console.log(dateClicked);
 	_chart.group().all().forEach(function(datum){
 		if(datum.key === dateClicked){
-			_chart.onClick(datum, i);
+			_chart.onClick(datum, i);//https://github.com/dc-js/dc.js/blob/develop/src/base-mixin.js
 		}
 	});
+}
+
+function onClickNoData(d, i) {
+	var dateClicked = simpleDate(d);
+	_chart.currDate = dateClicked;
+	console.log(dateClicked);
+	//can check https://github.com/dc-js/dc.js/blob/develop/src/base-mixin.js
+	//here if we use code in onClick, since the === would never occur, nothing would happen basically cannot filter the
+	dc.events.trigger(function () {
+      _chart.filter(dateClicked);
+      _chart.redrawGroup();
+  });
 }
 
 function prefixZero(value) {
@@ -199,11 +229,24 @@ _chart.rangeYears = function(range){
 	return _chart;
 }
 
+_chart.currSelectedDate = function(date){
+	_chart.currDate = date;
+	return _chart;
+}
+
+_chart.clickOnNoData = function(clickOrNo){
+	_chart.CLICKOnNoData = clickOrNo;
+	return _chart;
+}
+
+
 function _highlightFilters() {
 	if (_chart.hasFilter()) {
+		//console.log('has filter!')
 		var chartData = _chart.group().all();
 		_chart.root().selectAll('.day').each(function (d) {
 			if (_chart.hasFilter(simpleDate(d))) {
+				//console.log('simpleDate(d):',simpleDate(d))
 				_chart.highlightSelected(this);
 			}
 			else {
@@ -212,6 +255,7 @@ function _highlightFilters() {
 		});
 	}
 	else {
+		//console.log('no filter!')
 	  _chart.root().selectAll('.day').each(function (d) {
 	    _chart.resetHighlight(this);
 	  });
