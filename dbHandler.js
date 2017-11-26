@@ -62,7 +62,7 @@ exports.save2DB = function(userID, tableName,tableType, data){//dbName,tableName
               }
             //  console.log('Connected to the local SQlite database:./db/'+userID+'.db');
           });
-          db.run("begin transaction");//to speed up the insertion, we use transaction here
+          //db.run("begin transaction");//to speed up the insertion, we use transaction here
           var stmt = db.prepare(insertSql);
           db.parallelize(()=>{
               for(var dp in data) {//data piece
@@ -82,7 +82,7 @@ exports.save2DB = function(userID, tableName,tableType, data){//dbName,tableName
               }//check whether the inserted user ID is correct!
           });
           stmt.finalize();
-          db.run("commit");
+          //db.run("commit");
           db.close((err) => {
             if (err) {
               return console.error('Error Closing'+err.message);
