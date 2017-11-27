@@ -20,10 +20,6 @@ app.set('port', (process.env.PORT || 5000));
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
 
-<<<<<<< HEAD
-=======
-//app.use(express.static(__dirname + '/public'));
->>>>>>> f7795441ba13d67c8a595a04f54595e58285a17a
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname));
 app.use(bodyParser.urlencoded({extended: false}));
@@ -81,15 +77,9 @@ app.get('/callback', function(req,res){
     USER_ID = AUTH_INFO['user_id'];
     REFRESH_TOKEN = AUTH_INFO['refresh_token'];
     getData.saveProfile(ACCESS_TOKEN, REFRESH_TOKEN, USER_ID).then(()=>{
-<<<<<<< HEAD
 			console.log("saving files...");
 			res.render('pages/stats', {user: USER_ID, port:app.get('port'), env:app.get('env')});
  			//console.log('SHOULD have saved Profiles now!');
-=======
-			res.render('pages/index', {user: USER_ID, port:app.get('port'), env:app.get('env')});
-			console.log('SHOULD have saved Profiles now!');
-			//res.redirect('http://localhost:5000/getactivity?userid=52KG66&daysBefore=2&today=2017-10-01');
->>>>>>> f7795441ba13d67c8a595a04f54595e58285a17a
 		})
   });
 });
@@ -298,12 +288,7 @@ app.get('/getactFitbitAPIcontinuous', function(req,res){
 
 app.get('/stat', function (req, res) {
   console.log("this is the /index directory");
-<<<<<<< HEAD
   res.render('pages/stats', {user: USER_ID, port:app.get('port'), env:app.get('env')});
-=======
-  res.render('pages/index', {user: user_identity, port:app.get('port'), env:app.get('env')});
->>>>>>> f7795441ba13d67c8a595a04f54595e58285a17a
-
 });
 
 app.get('/planning_page', function (req, res) {

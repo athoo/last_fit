@@ -14,13 +14,6 @@ var activityLabels = ['Study', 'Walking', 'Lecture Time', 'Meeting', 'Running', 
 var id = $("#identity").text();
 var port = $("#portNo").text();
 var env = $("#environment").text();
-<<<<<<< HEAD:public/js/stats.js
-=======
-
->>>>>>> f7795441ba13d67c8a595a04f54595e58285a17a:public/js/main.js
-// var data_summary = $("#data_summary").text();
-// console.log(data_summary[0,10]);
-// console.log(typeof(JSON.parse(data_summary)));
 
 var host;
 if (env == 'development') {
@@ -32,10 +25,6 @@ if (env === 'production') {
 console.log(host);
 
 var getStatUrl = `http://` + host + `/getactivity?userid=52KG66&daysBefore=4&today=2017-10-03`;
-<<<<<<< HEAD:public/js/stats.js
-//var getStatUrl = `http://localhost:${port}/getactivity?userid=52KG66&daysBefore=4&today=2017-10-05`;
-=======
->>>>>>> f7795441ba13d67c8a595a04f54595e58285a17a:public/js/main.js
 console.log(getStatUrl);
 var data = d3.json(getStatUrl,
 	function (error, dataArr) {
@@ -166,12 +155,7 @@ var data = d3.json(getStatUrl,
 			console.log(user_id);
 			$('#labels').empty();//
 			$('#addLabel').empty();
-<<<<<<< HEAD:public/js/stats.js
-			//$.get('http://localhost:5000/getLabel', {'user_id': user_id}, function (data) {
         $.get(`http://` + host + `/getLabel`, {'user_id': user_id}, function (data) {
-=======
-            $.get(`http://` + host + `/getLabel`, {'user_id': user_id}, function (data) {
->>>>>>> f7795441ba13d67c8a595a04f54595e58285a17a:public/js/main.js
 				//console.log(data[0]);
 				//console.log(data.length);
 				for (item in data) {
@@ -206,13 +190,8 @@ var data = d3.json(getStatUrl,
 				'subjTag':subjTag
 			}
 
-<<<<<<< HEAD:public/js/stats.js
      $.post(`http://` + host + `/insertLabel`, label, function (data) {
-			//$.post(`http://localhost:${port}/insertLabel`, label, function (data) {
-=======
-            $.post(`http://` + host + `/insertLabel`, label, function (data) {
->>>>>>> f7795441ba13d67c8a595a04f54595e58285a17a:public/js/main.js
-				console.log(data);
+				//console.log(data);
 				generateLabels(user_id);
 				//console.log(data.duration);
 			});
