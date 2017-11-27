@@ -19,6 +19,21 @@
             <button class="btn btn-success" style="float:right;" id="planning_page" onclick="location.href='/planning_page'">Schedule exercise Plan</button>
             </br>
             <!-- <button id="data-brush" class="btn btn-primary" type="button">Turn on data brush</div> -->
+
+          <!--  <section id="exercise_overview">
+                <strong>Steps per day</strong>
+            </section> -->
+
+          <!--  <div id="calendar_basic" style="width: 1000px; height: 350px;"></div> -->
+            <!-- <section id="flat_activity">
+                <strong>flatten activities by day time.</strong>
+            </section>
+            <section id="updDate"></section> -->
+
+            <section id="calendar_view">
+                <strong>My Sports Calendar</strong>
+            </section>
+
             <section id="intraday_activity">
                 <strong>Intraday activities by day time.</strong>
             </section>
@@ -30,13 +45,6 @@
                 <section id="addLabel"></section>
                 <section id="taskPlan"></section>
             </div>
-
-
-
-            <section id="exercise_overview">
-                <strong>Steps per day</strong>
-
-            </section>
 
             <section id="weekday_view">
                 <strong>Aggregated activities by weekday.</strong>
@@ -52,7 +60,9 @@
     <footer>
         <% include ../partials/footer %>
     </footer>
+<!-- pass variables to mainjs-->
 <h1 style="display:none" id="identity"><%= user %></h1>
+<h1 style="display:none" id="portNo"><%= port %></h1>
 </body>
 <script src="/js/main.js"></script>
 </html>

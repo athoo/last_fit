@@ -6,7 +6,8 @@ let settings;
 
 //Use "-" (dash) for current logged-in user.
 
-exports.saveProfile = function(AccessToken, RefreshToken, UserId){
+exports.saveProfile = function(AccessToken, RefreshToken, userID){
+  return new Promise((resolve,reject)=>{
     settings = {
       headers: {
         'Authorization':' Bearer ' + AccessToken
@@ -23,18 +24,21 @@ exports.saveProfile = function(AccessToken, RefreshToken, UserId){
       keyNval.push(['lastLogin',defaultLogin.toISOString().split('T')[0]])
       //keyNval.push(['zerotest','0'])
       //console.log(keyNval)
-      var rowsChanged = dbHandler.save2DB('TOKEN2ID', 'names',0, Array([UserId, AccessToken, RefreshToken])) //insert TOKEN and USERID into the global table
+      var rowsChanged = dbHandler.save2DB('TOKEN2ID', 'names',0, Array([userID, AccessToken, RefreshToken])) //insert TOKEN and userID into the global table
       rowsChanged.then((value)=>{
           if(value > 0){
-              console.log('saving profile for user ' + UserId)
-              dbHandler.save2DB(UserId, 'profile', 1, keyNval)
+              console.log('saving profile for user ' + userID);
+              dbHandler.save2DB(userID, 'profile', 1, keyNval).then(()=>{
+                resolve();
+              }).catch(reason=>{console.log(`ERROR in saveProfile: fail to save profile to ${userID}.db`)});
           } else {
               console.log('registerd user')
+              resolve();
           }
-      })
-      return Profile
+      }).catch(reason=>{console.log('ERROR in saveProfile: fail to save name to TOKEN2ID.db') + reason});
     })
-  }
+  })
+}
 
 //can choose among all day long / within certain hours, start date / end date
 //check https://dev.fitbit.com/reference/web-api/activity/#get-activity-intraday-time-series
@@ -90,19 +94,19 @@ function get1dayActFromFitbitAPI(AccessToken, date, resource, stime = undefined,
 exports.get1dayActFromFitbitAPI = get1dayActFromFitbitAPI
 
 //if we use this mechanism and find that we don't have the required data, we save the data automatically
-exports.get1dayActSeries3Resources1min = function(AccessToken, date, UserID) {
+exports.get1dayActSeries3Resources1min = function(AccessToken, date, userID) {
     //first query, if empty, then continue http://www.sqlitetutorial.net/sqlite-nodejs/query/
     //MODIFY! the date should not be fixed unless for debugging
     var startTime = date+'T00:00:00'
     var endTime = date+'T23:59:59'
-    var actsList = (dbHandler.queryActivity(UserID, 'activity', startTime, endTime))
+    var actsList = (dbHandler.queryActivity(userID, 'activity', startTime, endTime))
     var nextOp = actsList.then( value => {
         console.log(value.length)
         if(!value.length) {
             console.log('no local record, request data from Fitbit API --- ')
-            caloSeries = get1dayActFromFitbitAPI(AccessToken, date, 'calories', UserID);
-            stepSeries = get1dayActFromFitbitAPI(AccessToken, date, 'steps', UserID);
-            // distSeries = get1dayActFromFitbitAPI(AccessToken, date, 'distance', UserID);
+            caloSeries = get1dayActFromFitbitAPI(AccessToken, date, 'calories', userID);
+            stepSeries = get1dayActFromFitbitAPI(AccessToken, date, 'steps', userID);
+            // distSeries = get1dayActFromFitbitAPI(AccessToken, date, 'distance', userID);
             Promise.all([caloSeries,stepSeries]).then(values => {
             //callback(values.map(...).reduce(...));
                 var concatened = []
@@ -110,7 +114,7 @@ exports.get1dayActSeries3Resources1min = function(AccessToken, date, UserID) {
                     //concatened[i] = [date+values[0][i][0],values[0][i][1],values[1][i][1]]
                     concatened[i] = [values[0][i][0],values[0][i][1],values[1][i][1]]
                 }
-                dbHandler.save2DB(UserID, 'activity',2, concatened)
+                dbHandler.save2DB(userID, 'activity',2, concatened)
                 return concatened//perhaps should modify to be resolve(concatened)
                 //console.log('dim:' + concatened.length + ',' + concatened[0].length) //1440, 4
                // console.log(concatened)

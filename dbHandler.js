@@ -3,100 +3,34 @@ const utils = require('./utils')
 //const async = require('async')
 
 //horizontal(dim1):schema, column names, and placeholder format
-//vertical(dim0): global token table, profile info for a certain user, activity for a certain user, label record for a certain user
+//vertical(dim0): names-global token table, profile-profile info for a certain user, activity-activity for a certain user, labels-label record for a certain user
 var schemaAndColName = [['(userID PRIMARY KEY, accTok, refTok)','(userID, accTok, refTok)','(?, ?, ?)'],
                         ['(dataType PRIMARY KEY, val)','(dataType, val)','(?, ?)'],
                         ['(time PRIMARY KEY, calories, steps)','(time, calories, steps)','(?, ?, ?)'],
-                        ['(startTime, endTime, categories, PRIMARY KEY (startTime, endTime))','(startTime, endTime, categories)','(?, ?, ?)']]
+                        ['(startTime, endTime, labelName, totalSteps, totalCals, subjectiveNotes, PRIMARY KEY (startTime, endTime))','(startTime, endTime, labelName, totalSteps, totalCals, subjectiveNotes)','(?, ?, ?, ?, ?,?)']]
 //pay attention to schema name! should first write all other column names if want to use PRIMARY KEY (colA, colB)
 
-//for activity, we want to first check date, then
-exports.save2DB = function(userID, tableName,tableType, data){//dbName,tableName,tableType mode(0,1,2), data
-    //datatype should be a concatenated one got in corresponding getData module
-    return new Promise((resolve, reject) => {
-        let db = new sqlite3.Database('./db/'+userID+'.db', (err) => {//are we processing all data in a batch? or should avoid open-close cost
-            if (err) {
-                return console.error(err.message);
-            }
-            console.log('Connected to the local SQlite database:./db/'+userID+'.db');
-        });
-
-        var schema = schemaAndColName[tableType][0]
-        var colsName = schemaAndColName[tableType][1]
-        var placeHolder = schemaAndColName[tableType][2]
-
-        var insertSql = `INSERT OR IGNORE INTO ${tableName} ${colsName} VALUES ${placeHolder}`
-
-        var totalChange = 0;
-        //serielize here coz we want to make sure the table is created
-        //db.serialize(() => {
-          // check whether table exist
-        db.run(`CREATE TABLE IF NOT EXISTS ${tableName} ${schema}`,function(err) {
-            if (err) {
-                return console.error('err Creating table\n'+err.message);
-            }
-            console.log('table ' + tableName + ' in DB file ' + userID + ' created.')
-            db.run("begin transaction");//to speed up the insertion, we use transaction here
-            var stmt = db.prepare(insertSql);
-            db.parallelize(()=>{
-                for(var dp in data) {//data piece
-                    ((dp)=>{
-                        let complData = data[dp]
-                        //if(tableType !== 2 || complData[2] > 0){
-                        //we do non zero check outside
-                            stmt.run(complData, function(err) {//TODO try to use multiple placeholder and insert data all at once
-                                if (err) {
-                                    return console.error('errLine42'+err.message);
-                                }
-                                if(this.changes){
-                                    totalChange += this.changes
-                                }
-                            });
-
-                    })(dp);
-                }//check whether the inserted user ID is correct!
-            });
-            stmt.finalize();
-            db.run("commit");
-        });
-
-        db.close((err) => {
-          if (err) {
-            return console.error('Error Closing'+err.message);
-          }
-          resolve(totalChange)
-          console.log('Close the database connection.');
-        });
-    })
-}
-
-exports.createTables = function(userID){
+//TODO here we actually open->create tables->close, and after in the voking function open again. improve with callback function format
+function createTables (userID, tableType, tableName){
     return new Promise((resolve, reject)=>{
         let db = new sqlite3.Database('./db/'+userID+'.db', (err) => {//
             if (err) {
                 reject(err);
-                console.log('No user data for userID: '+userID);
+                console.log('No db file for userID: '+userID);
             }
         });
-        var lblSchema = schemaAndColName[3][0]
-        var actSchema = schemaAndColName[2][0]
+        var schema = schemaAndColName[tableType][0]
+        var colsName = schemaAndColName[tableType][1]
+        var placeHolder = schemaAndColName[tableType][2]
+        var createSql = `CREATE TABLE IF NOT EXISTS ${tableName} ${schema}`
         db.serialize(() => {
-            db.run(`CREATE TABLE IF NOT EXISTS labels ${lblSchema}`,function(err) {
-                console.log(`CREATE TABLE IF NOT EXISTS labels ${lblSchema}`)
-                if (err) {
-                    //reject(err)
-                    console.log('Error when trying to create table Labels for user : '+userID);
-                } else{
-                    console.log('table labels in DB file ' + userID + ' created.')
-                }
-            });
-            db.run(`CREATE TABLE IF NOT EXISTS activity ${actSchema}`,function(err) {
-                console.log(`CREATE TABLE IF NOT EXISTS activity ${actSchema}`)
+            db.run(createSql, function(err) {
+              //  console.log(createSql)
                 if (err) {
                     reject(err)
-                    console.log('Error when trying to create table activity for user : '+userID);
-                } else {
-                    console.log('table activity in DB file ' + userID + ' created.')
+                    console.log(`Error when trying to create table ${tableName} for user : `+userID);
+                } else{
+                    console.log(`table ${tableName} in DB file` + userID + ' created.')
                 }
             });
         })
@@ -104,9 +38,60 @@ exports.createTables = function(userID){
           if (err) {
             reject(err)
           }
-          console.log('Close the database connection.');
           resolve()
         });
+    })
+}
+
+//for activity, we want to first check date, then
+exports.save2DB = function(userID, tableName,tableType, data){//dbName,tableName,tableType mode(0,1,2), data
+    //datatype should be a concatenated one got in corresponding getData module
+    return new Promise((resolve, reject) => {
+    //    var schema = schemaAndColName[tableType][0]
+        var colsName = schemaAndColName[tableType][1]
+        var placeHolder = schemaAndColName[tableType][2]
+
+        var insertSql = `INSERT OR IGNORE INTO ${tableName} ${colsName} VALUES ${placeHolder}`
+
+        var totalChange = 0;
+
+        createTables(userID, tableType, tableName).then(()=>{
+          let db = new sqlite3.Database('./db/'+userID+'.db', (err) => {//are we processing all data in a batch? or should avoid open-close cost
+              if (err) {
+                  reject(console.error(err.message));
+              }
+            //  console.log('Connected to the local SQlite database:./db/'+userID+'.db');
+          });
+          db.run("begin transaction");//to speed up the insertion, we use transaction here
+          var stmt = db.prepare(insertSql);
+          db.parallelize(()=>{
+              for(var dp in data) {//data piece
+                  ((dp)=>{
+                      let complData = data[dp]
+                      //if(tableType !== 2 || complData[2] > 0){
+                      //we do non zero check outside
+                          stmt.run(complData, function(err) {//TODO try to use multiple placeholder and insert data all at once
+                              if (err) {
+                                  return console.error('errLine42'+err.message);
+                              }
+                              if(this.changes){
+                                  totalChange += this.changes
+                              }
+                          });
+                  })(dp);
+              }//check whether the inserted user ID is correct!
+          });
+          stmt.finalize();
+          db.run("commit");
+          db.close((err) => {
+            if (err) {
+              return console.error('Error Closing'+err.message);
+            }
+            console.log(`save2DB, in total ${totalChange} changes`)
+            resolve(totalChange);
+  //          console.log('Close the database connection.');
+          });
+      })
     })
 }
 
@@ -119,7 +104,7 @@ exports.queryLabels = function(userID, timeStart, timeEnd){
             }
         });
 
-        let sql = `SELECT startTime stime, endTime etime, categories cats
+        let sql = `SELECT startTime stime, endTime etime, labelName cats
                    FROM labels
                    WHERE startTime >= ? AND endTime <= ?`;//TODO should return intersection? or as long as overlapping would be ok?
 
@@ -138,82 +123,102 @@ exports.queryLabels = function(userID, timeStart, timeEnd){
     })
 }
 
+/**previously implemented a version that can check whether label created here and update if exists:
+  *e.g., 2017-10-10T12:30,2017-10-10T13:30, "running", now want to add another label:"group work"
+  *here we assume that the database already created for this user.
+  *we mainly test only insertion, not update since we don't know how to update totalSteps(currently only updating labelName and subjectiveNotes allowed)
+  @param{string} userID
+  @param{Array} 2d array, element should be of format [startTime, endTime, labelName, totalSteps, totalCals, subjectiveNotes], so toUpdate is a 2d array,
+  if don't want to update a certain term ,should pass '' as the value of that column
+  here, subjectiveNotes would be a longer description
+  */
 exports.updateLabels = function(userID, toUpdate){//TODO how to deal with multiple label?
 //queryLabels in single entry format, this is in batch processing format
-//element of toUpdate should be of format [startTime, endTime, target categories], so toUpdate is a 2d array
+
     return new Promise((resolve, reject) => {
-        let db = new sqlite3.Database('./db/'+userID+'.db', (err) => {//are we processing all data in a batch? or should avoid open-close cost
+        var tableType = 3;
+        createTables(userID, tableType, 'labels').then(()=>{
+          let db = new sqlite3.Database('./db/'+userID+'.db', (err) => {//are we processing all data in a batch? or should avoid open-close cost
+              if (err) {
+                  reject(err);
+                  console.log('No user data for userID: '+userID + '\n'+err);
+              }
+          });
+          console.log('pure data is \n'+toUpdate)
+          var colsName = schemaAndColName[tableType][1]
+          var placeHolder = schemaAndColName[tableType][2]//var placeHolder = schemaAndColName[tableType][1].map((itm) => '?').join(',');
+          //actually not necessary, select * would be good enough since we only care exist or not
+          var qrySql = `SELECT startTime stime, endTime etime, labelName lbls, subjectiveNotes subj FROM labels
+                        WHERE startTime = ? AND endTime = ? `;
+          var isrtSql = `INSERT INTO labels ${colsName} VALUES ${placeHolder}`;
+          //currently we don;t support modification of totalSteps and Calories
+          var updSql = `UPDATE labels SET labelName = ?, subjectiveNotes = ?
+                          WHERE startTime = ? AND endTime = ?`;
+
+          for (var i = 0; i < toUpdate.length; i++){
+              //console.log(toUpdate[i])
+              var tempArr = toUpdate[i];
+              var [startTime, endTime, newLabel, steps, cals, newSubj] = tempArr;
+              console.log('new Subj is ' + newSubj);
+              (function (startTime, endTime, newLabel, steps, cals, newSubj) {
+                  console.log(startTime + ', ' + endTime + ', ' + newLabel);
+                  db.get(qrySql, [startTime, endTime], (err, row) => {
+                      if(err){
+                          console.log('error occured when updating data:')
+                      }
+                    //  console.log('in,  newLabel:'+newLabel)
+                      var updateExisted = false;
+                      var origLabels, origSubjNotes;
+                      if(row){
+                          console.log('query res:'+row)
+                          origLabels = JSON.parse(row.lbls)
+                          origSubjNotes = JSON.parse(row.subj)
+                          if(!origLabels.includes(newLabel) || !origSubjNotes.includes(newSubj)){
+                              updateExisted = true;//else, this label has already been recorded
+                          }
+                      }
+                      if(updateExisted){//this time period already recorded with at least one label
+                          console.log('parsed original labels and original subjective notes:')
+                          console.log(origLabels)
+                          console.log(origSubjNotes)
+                          if(newLabel !== '')
+                            origLabels.push(newLabel)//now actually become new label
+                          if(newSubj !== '')
+                            origSubjNotes.push(newSubj)
+                          console.log('new parsed array:')
+                          console.log(origLabels)
+                          db.run(updSql,[JSON.stringify(origLabels), JSON.stringify(origSubjNotes), startTime, endTime], function(err) {
+                              if (err) {
+                                  console.error('err updating ' + err.message)
+                                  reject(err)
+                              }
+                              console.log(`Rows updated ${this.changes}`);
+                          });
+                      } else if(!row){     //the to be recorded label not exist
+                          var newJSONLbl = JSON.stringify([newLabel])
+                          var newJSONSubj = JSON.stringify([newSubj])
+                          startTime, endTime, newJSONLbl, steps, cals, newJSONSubj
+                          //console.log('new value is ' + newSet)
+                          if(newJSONLbl || newJSONSubj)
+                          db.run(isrtSql,[startTime, endTime, newJSONLbl, steps, cals, newJSONSubj], function(err) {
+                              if (err) {
+                                  console.error('err updating -- inserting -- '+err.message);
+                                  reject(err)
+                              }
+                              console.log(`Rows inserted ${this.changes}`);
+                          });
+                      }
+                  })
+              })(startTime, endTime, newLabel, steps, cals, newSubj);
+          };//), (()=>{
+          db.close((err) => {
             if (err) {
-                reject(err);
-                console.log('No user data for userID: '+userID + '\n'+err);
+              return console.error('Error Closing'+err.message);
             }
-        });
-
-        console.log('pure data is \n'+toUpdate)
-        var qrySql = `SELECT startTime stime, endTime etime, categories lbls FROM labels
-                      WHERE startTime = ? AND endTime = ? `;
-        var isrtSql = `INSERT INTO labels (startTime, endTime, categories) VALUES (?,?,?)`;
-        var updSql = `UPDATE labels SET categories = ?
-                        WHERE startTime = ? AND endTime = ?`;
-
-        /*async.each(toUpdate, (value => {
-            var startTime = value[0];
-            var endTime = value[1];
-            var newVal = value[2];*/
-        for (var i = 0; i < toUpdate.length; i++){
-            var startTime = toUpdate[i][0], endTime = toUpdate[i][1], newVal = toUpdate[i][2];
-            (function (startTime, endTime, newVal) {
-                console.log(startTime + ', ' + endTime + ', ' + newVal)
-                db.get(qrySql, [startTime, endTime], (err, row) => {
-                    if(err){
-                        console.log('error occured when updating data:')
-                    }
-                    console.log('in,  newVal:'+newVal)
-                    var updateExisted = false;
-                    var parsedArr;
-                    if(row){
-                        console.log('query res:'+row)
-                        parsedArr = JSON.parse(row.lbls)
-                        if(!parsedArr.includes(newVal)){
-                            updateExisted = true;//else, this label has already been recorded
-                        }
-                    }
-                    if(updateExisted){//this time period already recorded with at least one label
-                        console.log('parsed array:')
-                        console.log(parsedArr)
-                        parsedArr.push(newVal)
-                        console.log('new parsed array:')
-                        console.log(parsedArr)
-                        db.run(updSql,[JSON.stringify(parsedArr), startTime, endTime], function(err) {
-                            if (err) {
-                                console.error('err updating ' + err.message)
-                                reject(err)
-                            }
-                            console.log(`Rows updated ${this.changes}`);
-                        });
-                    } else if(!row){     //the to be recorded label not exist
-                        var newJSON = JSON.stringify([newVal])
-                        //console.log('new value is ' + newSet)
-                        if(newJSON)
-                        db.run(isrtSql,[startTime, endTime, newJSON], function(err) {
-                            if (err) {
-                                console.error('err updating -- inserting -- '+err.message);
-                                reject(err)
-                            }
-                            console.log(`Rows inserted ${this.changes}`);
-                        });
-                    }
-                })
-            })(startTime, endTime, newVal);
-        };//), (()=>{
-        db.close((err) => {
-          if (err) {
-            return console.error('Error Closing'+err.message);
-          }
-          console.log('DB updating finished.');
-          resolve();
-        });
-    //}))
+            console.log('DB updating finished.');
+            resolve();
+          });
+        })
     })
 }
 
@@ -225,12 +230,12 @@ exports.getToken = function(userID){
                 reject('Error on opening TOKEN2ID' + err);
             }
         });
-        console.log('get token of user ' + userID)
+        console.log('get token of user ' + userID + 'in getToken')
         db.get(sql,userID,(err,row)=>{
             if(row){
                 resolve(row.tok)
             } else {
-                var errMsg = 'no userID ' + userID + ' found'
+                var errMsg = 'no userID ' + userID + ' found when trying to getToken'
                 errMsg += err?err:''
                 reject(errMsg)
             }
@@ -251,12 +256,12 @@ exports.getLastLogin = function(userID){
                 reject('Error on opening TOKEN2ID' + err);
             }
         });
-        console.log('get token of user ' + userID)
+        console.log('get token of user ' + userID + 'to check last login')
         db.get(sql,[],(err,row)=>{
             if(row){
                 resolve(row.val)
             } else {
-                var errMsg = 'no userID ' + userID + ' found'
+                var errMsg = 'no userID ' + userID + ' found when trying to update lastLogin'
                 errMsg += err?err:''
                 reject(errMsg)
             }
@@ -361,16 +366,16 @@ exports.getActDataFromLocalDB = function(userID, resourceType, startDay, endDay,
     console.log(`get data of ${userID} about ${resourceType} from ${startDay}
       to ${endDay}, with hourFilter ${hourFilter} and dayFilter ${dayFilter}`)
     return new Promise((resolve,reject)=>{
+        var res = []
         if (startDay > endDay){
-            resolve([])
+            resolve(res)
         }
         let db = new sqlite3.Database('./db/'+userID+'.db', (err) => {
             if (err) {
-                reject(err);
-                console.log('No user data for userID: '+userID);
+                reject('No user data for userID: ' + userID + err);
             }
         });
-        var paramArr = []
+        var paramArr = [];
         var queryCols;
         var mode;
         if(Array.isArray(resourceType) && resourceType.includes('steps') && resourceType.includes('calories')){
@@ -403,7 +408,6 @@ exports.getActDataFromLocalDB = function(userID, resourceType, startDay, endDay,
             paramArr = paramArr.concat([sHH,sHH,sMM,eHH,eHH,eMM])
         }
 
-        var res = []
         console.log('sql statement is : '+sql)
         console.log('select params: '+paramArr)
         db.each(sql,paramArr, (err, row) => {
@@ -427,10 +431,10 @@ exports.getActDataFromLocalDB = function(userID, resourceType, startDay, endDay,
               }
             }
         },()=>{
-            db.close();
-            console.log('reslength == '+res.length)
-            console.log('data read from local DB')
-            resolve(res)
+            db.close((err)=>{
+              console.log('data read from local DB, reslength == '+res.length)
+              resolve(res);
+            });
         });
     })
 }

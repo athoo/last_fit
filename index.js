@@ -11,13 +11,16 @@ const getData = require('./getData.js');
 const request = require('request');
 const authorization = require('./authorization.js');
 const botConnector = require('./botConnector.js');
+const utils = require('./utils.js');
 
 const app = express();
 
 app.set('port', (process.env.PORT || 5000));
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
-app.use(express.static(__dirname + 'public'));
+
+app.use(express.static(__dirname + '/.'));
+app.use(express.static(__dirname + '/public'));//app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
 
@@ -55,37 +58,29 @@ app.post('/webhook/', function(req, res) {
 // start login
 app.get('/', function(req, res){
   let code_url = code.url + '?' +querystring.stringify(code.qs)
-  console.log(code_url)
+  console.log('logged in. redirect to :'+code_url)
   res.redirect(code_url)
 })
 
 // return to the facebook messenger page
 app.get('/callback', function(req,res){
-  console.log('USER login')
-  let PARSEDQRY = querystring.parse(req.url.split('?')[1])
+	req.connection.setTimeout( 1000 * 60 );
+  console.log('USER login to callback')
+  let PARSEDQRY = querystring.parse(req.url.split('?')[1]);
   //console.log(PARSEDQRY)
-  token.form.code = PARSEDQRY['code']  //in fact is not token. it's the code set which would be used to get token
+  token.form.code = PARSEDQRY['code'];  //in fact is not token. it's the code set which would be used to get token
     //XZ append
   request.post(token, function(error, response, body) {//post to front-end request
-    AUTH_INFO = JSON.parse(body)
-    ACCESS_TOKEN = AUTH_INFO['access_token']
-    USER_ID = AUTH_INFO['user_id']
-    REFRESH_TOKEN = AUTH_INFO['refresh_token']
-    getData.saveProfile(ACCESS_TOKEN, REFRESH_TOKEN, USER_ID)
-    //var memberSince = dbHandler.getMemberSinceDate(USER_ID)
-    //console.log('member since: '+USER_ID)
-    /*var act = getData.get1dayActFromFitbitAPI(ACCESS_TOKEN, '2017-09-30', 'calories','13:30', '14:00')
-    act.then((value)=>{
-        console.log(value)
-    })*/
-    /*var fullData = getData.getActDataFromFitbitAPI(['steps','calories'], ACCESS_TOKEN, '2017-09-30', '2017-10-15', [0,1,3],['10:30','14:00'])
-    fullData.then(value=>{
-        console.log(value)
-    }).catch(reason=>{console.log('reason here:'+reason)})*/
-
-    res.send('redirecting')
+    AUTH_INFO = JSON.parse(body);
+    ACCESS_TOKEN = AUTH_INFO['access_token'];
+    USER_ID = AUTH_INFO['user_id'];
+    REFRESH_TOKEN = AUTH_INFO['refresh_token'];
+    getData.saveProfile(ACCESS_TOKEN, REFRESH_TOKEN, USER_ID).then(()=>{
+			res.render('pages/index', {user: USER_ID, port:app.get('port')});
+			//console.log('SHOULD have saved Profiles now!');
+			//res.redirect('http://localhost:5000/getactivity?userid=52KG66&daysBefore=2&today=2017-10-01');
+		})
   });
-  //res.redirect('/getUserProfile')
 });
 
 app.get('/getUserProfile', function(req,res){
@@ -100,9 +95,9 @@ app.get('/getUserProfile', function(req,res){
     })
 });
 
-//TODO we cannot make sure all data of date before lastLogin saved , if it was long long ago
 //http://localhost:5000/getactivity?userid=52KG66&daysBefore=2&today=2017-10-01
 app.get('/getactivity', function(req,res){
+		//req.connection.setTimeout( 1000 * 60);
     let PARSEDQRY = querystring.parse(req.url.split('?')[1])
     var userID = PARSEDQRY['userid']
     var daysBefore = PARSEDQRY['daysBefore']
@@ -121,7 +116,7 @@ app.get('/getactivity', function(req,res){
 		console.log('yesterday is ' + yesterday + 'aMonAgo is ' + aMonAgo)
 //    var dayFilter = daysFilter === 'weekends' ? [6,0] : (daysFilter === 'weekdays' ? [1,2,3,4,5] : [])
 		var dayFilter = [] // we do the filtering on frontend
-    var hourFilter = ['11:00','14:30']//[hoursFilterStart,hoursFilterEnd]
+    //var hourFilter = ['11:00','14:30']//[hoursFilterStart,hoursFilterEnd]
 
     var lastLogin = dbHandler.getLastLogin(userID)//could be a date or a label meaning "1st time, no data saved"
     var tok = dbHandler.getToken(userID)//access token
@@ -135,40 +130,71 @@ app.get('/getactivity', function(req,res){
 				console.log("one day before lastLogin is:" + oneDayBeforeLastLogin)*/
         //with lastLogin = 0 if no data saved, we don't query local DB either DB empty or lastLogin too long time ago
 				console.log(`savedAct : [${aMonAgo}, ${values[1]}), online data from [${unsavedStartDate}, ${today})`)
-				var savedAct = dbHandler.getActDataFromLocalDB(userID, resourceType, aMonAgo,values[1],dayFilter, hourFilter)
+				var savedAct = dbHandler.getActDataFromLocalDB(userID, resourceType, aMonAgo,values[1],dayFilter);//, hourFilter)
 				//get data and save through background operation, unsavedDates to render to user at once, but need to save all data (as opposed to filtered dates)
-        var newAct = getData.getActDataFromFitbitAPI(['steps','calories'], values[0], unsavedStartDate, today, dayFilter, hourFilter)
+        var newAct = getData.getActDataFromFitbitAPI(['steps','calories'], values[0], unsavedStartDate, today, dayFilter);//, hourFilter)
 				//considering that we want to give data to user as soon as possible, we do the save-newly-fetch-data separately
         Promise.all([savedAct, newAct]).then(vals=>{
+					if(vals == undefined || typeof(vals) === undefined){
+						console.log('vals undefined')
+					}
 					if(vals[0] == undefined) {
 							console.log('trie to get saved data, but undefined returned:' + vals[0])
-							res.send(vals[1])
+							res.send(utils.filterOnActArr(vals[1]));//,hourFilter))
 					} else {//if no saved data,vals[0] should be [] here
-						  res.send(vals[0].concat(vals[1]));
+							console.log('vals length : ' + vals.length);
+							console.log('types:' + typeof(vals[0]), typeof(vals[1]));
+							console.log('lengths:' + vals[0].length + ', ' + vals[1].length);
+							var concatData = vals[0].concat(utils.filterOnActArr(vals[1]));
+							console.log('length of concatenated data:' + concatData.length);
+							res.send(concatData);//,hourFilter)));
+							res.end();
 					}
             //res.send(vals[0].concat(vals[1]));
-        }).catch(reason=>{console.log('err when wait for savedAct and newAct'+reason)})
+        }).catch(reason=>{
+					console.log('err when wait for savedAct and newAct'+reason)
+				});
+			//	savedAct.then(val=>{console.log('savedAct got : ' + val.length)}).catch(reason=>{console.log('savedAct value wrong' + reason)})
+			//	newAct.then(val=>{console.log('newAct got : ' + val.length)}).catch(reason=>{console.log('newAct value wrong' + reason)})
 				//if lastLogin == today, then unsavedStartDate == today, so in saveFitbitAct2Local, no date would be filtered out
         Promise.all([lastLogin,newAct]).then((vals)=>{
 					console.log('tosave')
-					console.log(vals[1])
+					console.log(vals[1].length + " items")
 					return dbHandler.save2DB(userID, 'activity',2, vals[1]);
 				}).then(()=>{
 					console.log('start updating lastLogin')
-					dbHandler.updateLastLogin(userID,today);
+					if(lastLogin < today){
+						dbHandler.updateLastLogin(userID,today);
+					}
+				}).catch(reason=>{
+					console.log('error when try to save data and update the lastLogin '+reason)
 				})
-    })
+    }).catch(reason=>{console.log('ERROR in getactivity: at least one of tok & lastLogin is not available')})
 });
-
-app.get('/insertLabel', function(req,res){
-    var toInsert = [['2017-09-2700:00:00','2017-09-2710:00:00','sleeping'],['2017-09-2709:00:00','2017-09-2713:30:00','swimming']]
-    var toUpdate = [['2017-09-2700:00:00','2017-09-2710:00:00','laughing'],['2017-09-2709:00:00','2017-09-2713:30:00','swimming']]
-    var createEssentialTables = dbHandler.createTables(USER_ID)
-    console.log('insert data for user ' + USER_ID)
-    createEssentialTables.then(()=>{
-        dbHandler.updateLabels(USER_ID, toUpdate)
-    })/*.then((results)=>{
-        dbHandler.updateLabels(USER_ID, toUpdate)
+//http://localhost:5000/insertLabel
+//if don't want to update a certain term ,should pass '' as the value of that column
+app.post('/insertLabel', function(req,res){
+		var label = req.body;
+		var userID = label.user_id,
+				sTime = label.periodStart,
+				eTime = label.periodEnd,
+				lblN = label.labelName,
+				steps = label.steps,
+				cal = label.cals,
+				subj = label.subjTag;
+		dbHandler.updateLabels(userID, [[sTime, eTime, lblN, steps, cal, subj]]).then(()=>{
+			console.log('new label recorded');
+		}).catch(reason=>{console.log('failed to record new label: ',reason)});
+		//let parsed =
+	//  let PARSEDQRY = querystring.parse(req.url.split('?')[1]);
+	//	var userID = PARSEDQRY['userid'];
+    /*var toInsert = [['2017-09-27T00:00:00','2017-09-27T10:00:00','sleeping',19,78.6,'sound'],['2017-09-27T09:00:00','2017-09-27T13:30:00','swimming',30,200.57,'relaxing']]
+    var toUpdate = [['2017-09-27T00:00:00','2017-09-27T10:00:00','laughing',0,7.8,'happy'],['2017-09-27T09:00:00','2017-09-27T13:30:00','gaming',30,200.5,'feel lucky']]
+    //var createEssentialTables = dbHandler.createTables(USER_ID)
+    console.log('insert data for user ' + userID)
+    dbHandler.updateLabels(userID, toInsert)
+    .then(()=>{
+        dbHandler.updateLabels(userID, toUpdate)
     })*/
 });
 
