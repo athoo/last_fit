@@ -213,9 +213,20 @@ app.get('/getPlan',function(req,res){
 	//TODO eliminate planset!
 	console.log(startTime, endTime, planSet)
 	dbHandler.getPlan(userID,startTime, endTime, planSet).then(vals=>{
-		console.log(vals)
-		res.send(vals)
-	}).catch(reason=>{console.log('getting plan failed')})
+		console.log(vals);
+		if(vals.length == 0) {//make some fakedata, can further eliminate them in planning.js
+			let fakeSt = PARSEDQRY['sdate']+'T00:00:00';
+			let fakeEd = PARSEDQRY['sdate']+'T00:00:01';
+			res.send([[fakeSt, fakeEd, 'blink', 1, 'A']]);
+		}else{
+			res.send(vals);
+		}
+	}).catch(reason=>{
+			console.log('getting plan failed');
+			let fakeSt = PARSEDQRY['sdate']+'T00:00:00';
+			let fakeEd = PARSEDQRY['sdate']+'T00:00:01';
+			res.send([[fakeSt, fakeEd, 'blink', 1, 'A']]);
+		})
 });
 
 //http://localhost:5000/setPlan?userID=52KG66

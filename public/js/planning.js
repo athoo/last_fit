@@ -115,11 +115,6 @@ function getPlanFromDBAndRender(){
   				all: 'All records selected. Please click on the graph to apply filters.'
   			});
 
-  		var dateDim = exs.dimension(function (d) {
-          //("%Y-%m-%d")
-          return d.date;
-      });
-
       var timeDim = exs.dimension((d)=>{return d.stime;})
 
   		console.log(maxDate)
@@ -379,7 +374,7 @@ function getPlanFromDBAndRender(){
         'data':JSON.stringify(plan2save),
         'date':calendarChart.currDate
       };
-      console.log("entered")
+      console.log("entered");
       $.post(`http://` + host + `/setPlan`, tosave, function (data) {
         exs.remove();
         exs.add(planSchedule);
