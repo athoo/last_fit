@@ -26,14 +26,43 @@ var planSchedule = [];
 // console.log(data_summary[0,10]);
 // console.log(typeof(JSON.parse(data_summary)));
 
+function overlap(winA, winB) {
+    let A1st = winA.etime <= winB.stime, B1st = winB.etime <= winA.stime;
+    //console.log(curr, earlyStart || lateEnd);
+    return !(A1st || B1st);
+}
 
-function overlap(currLbl, currentPlan) {
-  return currentPlan.reduce(function(tot, curr){
-    let earlyStart = curr.stime.toTimeString().split(' ')[0] <= (currLbl[0]).split(' ')[4],
-    lateEnd = curr.etime.toTimeString().split(' ')[0] >= currLbl[1].split(' ')[4];
-    return tot || (earlyStart
-    && lateEnd);
-  }, false);
+function compareStartTime(a,b) {
+  if (a.stime < b.stime)
+    return -1;
+  if (a.stime > b.stime)
+    return 1;
+  return 0;
+}
+
+function binarySearch(ar, el, compare_fn) {
+  //  console.log(ar);
+  //  console.log(el);
+    var lo = 0;
+    var hi = ar.length - 1;
+    let cnt = 0;
+    while (lo < hi && cnt < ar.length) {
+        let mid = lo + (hi - lo >> 1);
+        console.log(lo, mid, hi);
+        var cmp = compare_fn(ar[mid], el);
+        if (cmp < 0) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+  //      console.log(lo, mid, hi);
+        cnt++;
+    }
+    if (compare_fn(ar[hi], el) < 0) {
+      hi += 1;
+    }
+  //  console.log('finally get', hi);
+    return hi;
 }
 
 var getStatUrl = `http://` + host + `/getPlan?userID=52KG66&sdate=2017-10-08&edate=2017-10-25&planset=A`;
@@ -210,12 +239,12 @@ function getPlanFromDBAndRender(){
     $('#labels').empty();//
     $('#addLabel').empty();
     $.get(`http://` + host + `/getLabel`, {'user_id': user_id}, function (data) {
-      console.log(data[0]);
+    //  console.log(data[0]);
       //console.log(data.length);
       labeldata = data;
       for (item in data) {
         var labelInfo = data[item];
-        console.log(labelInfo)
+      //  console.log(labelInfo)
         //TODO a brief version, only show labelInfo[2][0], not concatened labelInfo[2] items
         labelName = JSON.parse(labelInfo[2])[0];
         subjFeel = JSON.parse(labelInfo[5])[0];
@@ -227,29 +256,106 @@ function getPlanFromDBAndRender(){
     });
     $('#labels').on("click", "button", function(){
         let currLbl = (labeldata[$(this).val()]);
-        //console.log(currLbl[0].split(' ')[4]);
-        if(!overlap(currLbl, planSchedule)){//if can add this plan
-            //constructing new plan
-            let newPlanFromLbl = {};
-            newPlanFromLbl.date = calendarChart.currDate;
-            newPlanFromLbl.stime = parseTime(currLbl[0].split(' ')[4]);
-            newPlanFromLbl.etime = parseTime(currLbl[1].split(' ')[4]);
-            //TODO currently we use JSON.parse(labelArray)[0] as label name, don't consider multi-label
-            newPlanFromLbl.planName = JSON.parse(currLbl[2])[0];//currLbl[2];
-            newPlanFromLbl.intensity = (+currLbl[4])/(Math.round((newPlanFromLbl.etime - newPlanFromLbl.stime)/(1000*60)));
-            console.log(currLbl);
-            console.log(newPlanFromLbl);
-            planSchedule.push(newPlanFromLbl);
-            updateIntraday('redraw');
-            //newPlanFromLbl.stime =
-        } else {//error or promption
-            console.log('arranged already!')
+        var newPlanFromLbl = {};
+        newPlanFromLbl.date = calendarChart.currDate;
+        newPlanFromLbl.stime = parseTime(currLbl[0].split(' ')[4]);
+        newPlanFromLbl.etime = parseTime(currLbl[1].split(' ')[4]);
+        //TODO currently we use JSON.parse(labelArray)[0] as label name, don't consider multi-label
+        newPlanFromLbl.planName = JSON.parse(currLbl[2])[0];//currLbl[2];
+        var dur = Math.round((newPlanFromLbl.etime - newPlanFromLbl.stime)/(1000*60));
+        newPlanFromLbl.intensity = (+currLbl[4])/dur;
+        console.log(newPlanFromLbl);
+        var initLoc = binarySearch(planSchedule, newPlanFromLbl, compareStartTime);
+        console.log(initLoc);
+        //3 condition: no matter which one, the stime should be in a range(0,r)
+        //we try from loc and stop if we find a non-overlapping window.
+        var loc = -1, plnArrLen = planSchedule.length;
+        //the best case is that we don't move it, and leave the stime as it was from label
+        if (initLoc == 0 && !overlap(newPlanFromLbl,planSchedule[0])) {
+          loc = 0;
+        }else if(initLoc == plnArrLen && !overlap(newPlanFromLbl,planSchedule[plnArrLen - 1]) ){
+          loc = plnArrLen;
+        } else if(!overlap(newPlanFromLbl, planSchedule[initLoc]) && !overlap(newPlanFromLbl,planSchedule[initLoc-1])){
+          loc = initLoc;
         }
+      //  console.log(loc);
+        if(loc !== -1){//don't need to move it
+          planSchedule.splice(loc, 0, newPlanFromLbl);
+          console.log(planSchedule);
+          updateIntraday('redraw');
+        }
+        else{//initial location not feasible, need to move. try starting from initLoc and push towards both ends
+          var frontEndTouched = false, backEndTouched = false, earliestStart, latestStart;
+            let locTmp = initLoc, i = 0;
 
-      //  planSchedule = planSchedule.concat(plan4today1);
-        //console.log(planSchedule);
+            function startRangeAt(loca) {
+              let eStrt, lStrt;
+              console.log(dur);
+              if(loca == 0){
+                console.log('insert at front end');
+                eStrt = parseTime('00:00:00');
+                lStrt = new Date (planSchedule[loca].stime);
+                lStrt.setMinutes(lStrt.getMinutes() - dur);
+              } else if(loca == plnArrLen){
+                console.log('insert at back end');
+                eStrt = new Date (planSchedule[loca - 1].etime);
+                console.log(eStrt);
+                lStrt = parseTime('23:59:59');
+                lStrt.setMinutes(lStrt.getMinutes() - dur);
+                console.log(lStrt);
+              } else {// in between a certain period
+                console.log('insert at middle position', loca);
+                eStrt = new Date (planSchedule[loca - 1].etime);
+                //eStrt.setMinutes(eStrt.getMinutes());
+                console.log(eStrt);
+                lStrt = new Date (planSchedule[loca].stime);
+                lStrt.setMinutes(lStrt.getMinutes() - dur);
+                console.log(lStrt);
+              }
+              return [eStrt, lStrt];
+            }
 
-        //updateIntraday('redraw');
+            while(!frontEndTouched || !backEndTouched){
+              locTmp = initLoc - i;
+              if (locTmp >= 0){
+                [earliestStart, latestStart] = startRangeAt(locTmp);
+                console.log(earliestStart, latestStart);
+                if(earliestStart < latestStart){
+                  newPlanFromLbl.stime = new Date (earliestStart);
+                  newPlanFromLbl.stime.setMinutes(newPlanFromLbl.stime.getMinutes()+Math.round((latestStart - earliestStart)/(2*1000*60)));
+                  newPlanFromLbl.etime = new Date (newPlanFromLbl.stime);
+                  newPlanFromLbl.etime.setMinutes(newPlanFromLbl.etime.getMinutes() + dur);
+                  planSchedule.splice(locTmp, 0, newPlanFromLbl);
+                  console.log(planSchedule);
+                  updateIntraday('redraw');
+                  break;
+                }
+              } else {
+                frontEndTouched = true;
+              }
+              locTmp = initLoc + i;
+              if (locTmp <= plnArrLen){
+                [earliestStart, latestStart] = startRangeAt(locTmp);
+                console.log(earliestStart, latestStart);
+                if(earliestStart < latestStart){
+                  newPlanFromLbl.stime = new Date (earliestStart);
+                  newPlanFromLbl.stime.setMinutes(newPlanFromLbl.stime.getMinutes()+Math.round((latestStart - earliestStart)/(2*1000*60)));
+                  newPlanFromLbl.etime = new Date (newPlanFromLbl.stime);
+                  newPlanFromLbl.etime.setMinutes(newPlanFromLbl.etime.getMinutes() + dur);
+                  planSchedule.splice(locTmp, 0, newPlanFromLbl);
+                  console.log(planSchedule);
+                  updateIntraday('redraw');
+                  break;
+                }
+              } else {
+                backEndTouched = true;
+              }
+              i++;
+            }
+            if(frontEndTouched&&backEndTouched){
+              console.log('no feasible location!');
+            }
+          }
     });
   }
 
@@ -320,10 +426,10 @@ function getPlanFromDBAndRender(){
       				var p_end_time = new Date(timeDim.top(1)[0].stime);
               p_end_time.setMinutes(p_end_time.getMinutes() + 1);
               console.log(p_start_time,p_end_time)
-          //filter existed plan for today
-              var plan4today1 = timeDim.filter([p_start_time, p_end_time]).top(Infinity)
+          //filter existed plan for today, ascending order
+              var plan4today1 = timeDim.filter([p_start_time, p_end_time]).bottom(Infinity)
           //    plan4today1.map((curr)=>{console.log(curr.stime)});
-
+              //console.log(plan4today1)
               planSchedule = planSchedule.concat(plan4today1);
 
             }
