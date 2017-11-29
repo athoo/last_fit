@@ -297,7 +297,7 @@ app.get('/getactFitbitAPIcontinuous', function(req,res){
     })
 });
 
-app.get('/stat', function (req, res) {
+app.get('/stats', function (req, res) {
   console.log("this is the /index directory");
   res.render('pages/stats', {user: USER_ID, port:app.get('port'), env:app.get('env')});
 });

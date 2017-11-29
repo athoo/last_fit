@@ -40,7 +40,8 @@ function compareStartTime(a,b) {
   return 0;
 }
 
-function binarySearch(ar, el, compare_fn) {
+var binSrcr = d3.bisector(function(d) { return d.stime; }).left;
+function binarySearch(ar, el, compare_fn) {//TODO use bisectRight or bisectLeft instead
   //  console.log(ar);
   //  console.log(el);
     var lo = 0;
@@ -178,7 +179,7 @@ function getPlanFromDBAndRender(){
     let totMinutes = Math.round(dur/(1000*60));
     var unitx = xScale.range()[1]/totMinutes;
 
-    svg.selectAll(".bar").remove();
+    //svg.selectAll(".bar").remove();
     //ZX note above is a key line!
   	var bars = svg.selectAll(".bar").data(planSchedule,function(d){return d.date+d.stime;});
 
@@ -227,7 +228,7 @@ function getPlanFromDBAndRender(){
         updateIntraday('redraw');
       });
 
-      //bars.exit().remove();
+      bars.exit().remove();
   }
 
   var generateLabels = function (user_id) {
@@ -260,13 +261,13 @@ function getPlanFromDBAndRender(){
         var dur = Math.round((newPlanFromLbl.etime - newPlanFromLbl.stime)/(1000*60));
         newPlanFromLbl.intensity = (+currLbl[4])/dur;
         console.log(newPlanFromLbl);
-        var initLoc = binarySearch(planSchedule, newPlanFromLbl, compareStartTime);
+        var initLoc = binSrcr(planSchedule, newPlanFromLbl.stime);//binarySearch(planSchedule, newPlanFromLbl, compareStartTime);
         console.log(initLoc);
         //3 condition: no matter which one, the stime should be in a range(0,r)
         //we try from loc and stop if we find a non-overlapping window.
         var loc = -1, plnArrLen = planSchedule.length;
         //the best case is that we don't move it, and leave the stime as it was from label
-        if (initLoc == 0 && !overlap(newPlanFromLbl,planSchedule[0])) {
+        if (initLoc == 0 && (!plnArrLen||!overlap(newPlanFromLbl,planSchedule[0]))) {
           loc = 0;
         }else if(initLoc == plnArrLen && !overlap(newPlanFromLbl,planSchedule[plnArrLen - 1]) ){
           loc = plnArrLen;
