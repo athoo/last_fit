@@ -78,36 +78,6 @@ var data = d3.json(getStatUrl,
 				all: 'All records selected. Please click on the graph to apply filters.'
 			});
 
-/*
-
-		/*exerciseOverview
-			.width(width).height(200)
-      .margins({top: 30, right: 60, bottom: 25, left: 60})
-			.dimension(dateDim)
-			.group(exercise_all)
-			.x(d3.time.scale().domain([minDate, maxDate]))
-			.elasticY(true)
-			//.elasticX(true)
-			.xUnits(function () {
-				return 100;
-			})
-			.brushOn(true)
-			.on('renderlet', function (chart) {
-				chart.selectAll('rect').on("click", function (d) {
-					console.log("click!", d);
-				});
-			});
-
-		$("#data-brush").on('click', function (d) {
-			if (exerciseOverview.brushOn() == false) {
-				exerciseOverview.brushOn(true);
-				d.target.innerHTML = "Turn off data brush";
-			} else {
-				exerciseOverview.brushOn(false);
-				d.target.innerHTML = "Turn on data brush";
-			};
-			dc.renderAll()
-		});*/
 		var calendarDimension = exs.dimension(function (d) {
         //("%Y-%m-%d")
         return d.date;

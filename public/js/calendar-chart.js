@@ -6,11 +6,14 @@ var color;
 var width = 900,
 	height = 120,
 	cellSize = 16; // cell size
+	_chart.AVAILABLE_CLASS = "day-available";
+	_chart.UNAVAILABLE_CLASS = "day-unavailable"
 	_chart.SELECTED_CLASS = "day-selected";
 	_chart.DESELECTED_CLASS = "day-deselected";
 	_chart.OFFSET = 20;
 	_chart.range = d3.range(thisYear, thisYear + 1);
 	_chart.currDate = new Date();
+	_chart.maxHeat = 10000;
 	_chart.CLICKOnNoData = false;
 
 var day = d3.time.format("%w"),
@@ -101,9 +104,11 @@ _chart._doRender = function () {
 		})
 		.map(_chart.data());
 
+		console.log(data);
+
 	if(!color){
 		color = d3.scale.quantize()
-			.domain([-20000,20000])
+			.domain([0,_chart.maxHeat])
 			.range(d3.range(11).map(function(d) {
 				return "q" + d + "-11";
 			}));
@@ -152,10 +157,18 @@ _chart._doRender = function () {
 function onClick(d, i) {
 	var dateClicked = simpleDate(d);
 	_chart.currDate = dateClicked;
-	console.log(dateClicked);
 	_chart.group().all().forEach(function(datum){
 		if(datum.key === dateClicked){
-			_chart.onClick(datum, i);//https://github.com/dc-js/dc.js/blob/develop/src/base-mixin.js
+			//_chart.onClick(datum, i);//check source code here: //https://github.com/dc-js/dc.js/blob/develop/src/base-mixin.js
+			//check for the reason of modification here:https://dc-js.github.io/dc.js/docs/html/dc.baseMixin.html#hasFilterHandler
+			/*to be more specific, the reason is "Each toggle is executed by checking if the value is already present using the hasFilterHandler; if it is not present, it is added using the addFilterHandler; if it is already present, it is removed using the removeFilterHandler."*/
+			var filter = _chart.keyAccessor()(datum);
+			if(!_chart.hasFilter(filter))
+        dc.events.trigger(function () {
+        _chart.filter(filter);
+				//console.log(_chart.hasFilter());
+        _chart.redrawGroup();
+      });
 		}
 	});
 }
@@ -209,19 +222,30 @@ _chart.isLegendableHidden = function (d) {
 
 //custom overrides for calendarChart since standard selected and deselected
 //classes for DC make the chart look bad
-_chart.highlightSelected = function (e) {
+
+
+_chart.highlightAvailable = function (e) {
+	d3.select(e).classed(_chart.AVAILABLE_CLASS, true);
+	d3.select(e).classed(_chart.SELECTED_CLASS, false);
+	d3.select(e).classed(_chart.UNAVAILABLE_CLASS, false);
+};
+
+_chart.darkSelected = function (e) {
+	d3.select(e).classed(_chart.AVAILABLE_CLASS, false);
 	d3.select(e).classed(_chart.SELECTED_CLASS, true);
-	d3.select(e).classed(_chart.DESELECTED_CLASS, false);
+	d3.select(e).classed(_chart.UNAVAILABLE_CLASS, false);
 };
 
-_chart.fadeDeselected = function (e) {
+_chart.fadeUnavailable = function (e) {
+	d3.select(e).classed(_chart.AVAILABLE_CLASS, false);
 	d3.select(e).classed(_chart.SELECTED_CLASS, false);
-	d3.select(e).classed(_chart.DESELECTED_CLASS, true);
+	d3.select(e).classed(_chart.UNAVAILABLE_CLASS, true);
 };
 
-_chart.resetHighlight = function (e) {
+_chart.resetAvailable = function (e) {
+	d3.select(e).classed(_chart.AVAILABLE_CLASS, false);
 	d3.select(e).classed(_chart.SELECTED_CLASS, false);
-	d3.select(e).classed(_chart.DESELECTED_CLASS, false);
+	d3.select(e).classed(_chart.UNAVAILABLE_CLASS, false);
 };
 
 _chart.rangeYears = function(range){
@@ -239,25 +263,36 @@ _chart.clickOnNoData = function(clickOrNo){
 	return _chart;
 }
 
+var binSrcr = d3.bisector(function(d) { return d.key; }).left;//add mode selection to support both
 
 function _highlightFilters() {
-	if (_chart.hasFilter()) {
+	if (_chart.hasFilter()) {//TODO try to use this to eliminate fake data
 		//console.log('has filter!')
 		var chartData = _chart.group().all();
 		_chart.root().selectAll('.day').each(function (d) {
-			if (_chart.hasFilter(simpleDate(d))) {
-				//console.log('simpleDate(d):',simpleDate(d))
-				_chart.highlightSelected(this);
+			var simpD = simpleDate(d), loc = binSrcr(_chart.data(), simpD), available = false;
+			//console.log(loc);
+			if(loc >= 0 && loc < _chart.data().length){
+				if(_chart.data()[loc].key == simpD){
+//					console.log(simpD);
+					available = true;
+				}
+			}
+			if (_chart.hasFilter(simpD)) {//add selected here
+				_chart.darkSelected(this);
+			} else if(available){
+				console.log('true');
+				_chart.highlightAvailable(this);
 			}
 			else {
-				_chart.fadeDeselected(this);
+				_chart.fadeUnavailable(this);
 			}
 		});
 	}
 	else {
-		//console.log('no filter!')
-	  _chart.root().selectAll('.day').each(function (d) {
-	    _chart.resetHighlight(this);
+			console.log('no filter!')
+	  	_chart.root().selectAll('.day').each(function (d) {
+	    _chart.resetAvailable(this);
 	  });
 	}
 }

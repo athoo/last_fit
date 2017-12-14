@@ -8,7 +8,17 @@
   -ms-transition: fill 500ms linear;
   transition: fill 500ms linear;
 }
-.day.day-deselected{
+
+.day.day-selected{
+  fill: #ffffff!important;
+  -webkit-transition: fill 500ms linear;
+  -moz-transition: fill 500ms linear;
+  -o-transition: fill 500ms linear;
+  -ms-transition: fill 500ms linear;
+  transition: fill 500ms linear;
+}
+
+.day.day-unavailable{
   fill: #cccccc!important;
   -webkit-transition: fill 500ms linear;
   -moz-transition: fill 500ms linear;

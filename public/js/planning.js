@@ -22,6 +22,7 @@ if (env === 'production') {
 
 var labeldata;
 var planSchedule = [];
+var bakPlan;
 // var data_summary = $("#data_summary").text();
 // console.log(data_summary[0,10]);
 // console.log(typeof(JSON.parse(data_summary)));
@@ -41,29 +42,25 @@ function compareStartTime(a,b) {
 }
 
 var binSrcr = d3.bisector(function(d) { return d.stime; }).left;
-function binarySearch(ar, el, compare_fn) {//TODO use bisectRight or bisectLeft instead
-  //  console.log(ar);
-  //  console.log(el);
-    var lo = 0;
-    var hi = ar.length - 1;
-    let cnt = 0;
-    while (lo < hi && cnt < ar.length) {
-        let mid = lo + (hi - lo >> 1);
-        console.log(lo, mid, hi);
-        var cmp = compare_fn(ar[mid], el);
-        if (cmp < 0) {
-            lo = mid + 1;
-        } else {
-            hi = mid;
-        }
-  //      console.log(lo, mid, hi);
-        cnt++;
-    }
-    if (compare_fn(ar[hi], el) < 0) {
-      hi += 1;
-    }
-  //  console.log('finally get', hi);
-    return hi;
+
+function getSimpHHMM(date) {
+  let hr = date.getHours(),
+  mn = date.getMinutes();
+  hr = hr < 10 ? ('0'+hr.toString()):hr.toString();
+  mn = mn < 10 ? ('0'+mn.toString()):mn.toString();
+  return hr+":"+mn;
+}
+
+function jsonDateBack2Timezone(plan){
+  //console.log(plan);
+  plan.forEach(d=>{
+    d.stime = parseWhole(d.stime.split('.')[0]);
+    var shr = (d.stime.getHours() - d.stime.getTimezoneOffset() / 60);
+    d.stime.setHours(shr);
+    d.etime = parseWhole(d.etime.split('.')[0]);
+    d.etime.setHours((d.etime.getHours() - d.etime.getTimezoneOffset() / 60)%24);
+  //  console.log(d.stime,d.etime);
+  })
 }
 
 var getStatUrl = `http://` + host + `/getPlan?userID=52KG66&sdate=2017-10-08&edate=2017-10-25&planset=A`;
@@ -136,6 +133,7 @@ function getPlanFromDBAndRender(){
       .range([0,intraDChartWidth]);
 
           var yScale = d3.scale.linear().domain([10,0]).range([0,intraDChartHeight]);
+          var loc2Intense = d3.scale.linear().domain([0,intraDChartHeight]).range([10,0]);
 
           var xAxis = d3.svg.axis()
                   .orient("bottom")
@@ -169,6 +167,7 @@ function getPlanFromDBAndRender(){
   //    console.log(newYmax,oldYmax)
     newYmax = newYmax > oldYmax ? newYmax : oldYmax;
   	yScale.domain([newYmax, 0 ]);
+    loc2Intense.range([newYmax, 0]);
     yAxis.scale(yScale);
 
     svg.select('.y')
@@ -179,14 +178,23 @@ function getPlanFromDBAndRender(){
     let totMinutes = Math.round(dur/(1000*60));
     var unitx = xScale.range()[1]/totMinutes;
 
-    //svg.selectAll(".bar").remove();
+    svg.selectAll("g.pls").remove();
     //ZX note above is a key line!
-  	var bars = svg.selectAll(".bar").data(planSchedule,function(d){return d.date+d.stime;});
+    var group = svg.selectAll('g.pls')
+      .data(planSchedule, function(d){return d.date+d.stime;});//key function of data!
 
-  	bars.enter()
-  		.append("rect")
+    //group.exit().remove();//useless
+
+    var newBarGs = group.enter()
+      .append("g")
+      .attr("class", "pls");
+
+      console.log(newBarGs);
+
+  		newBarGs.append("rect")
   		.attr("class", "bar")
   		.attr("x", function(d, i){
+      //    console.log(d);
           return xScale(d.stime)
        })
   		.attr("y", function(d){ return yScale( d.intensity); })
@@ -204,31 +212,234 @@ function getPlanFromDBAndRender(){
   			}
   		})
       .call(d3.behavior.drag()
+          .origin(function(d) { return {x: xScale(d.stime), y: 0};}) //origin: as if I started dragging at this place
+          .on("dragstart", function(d,i) {
+              console.log("dragging ",i);
+              console.log(newBarGs);
+              d.initx = xScale(d.stime);
+              d.origW = unitx*Math.round((d.etime - d.stime)/(1000*60));
+              bakPlan = JSON.parse(JSON.stringify(planSchedule)); // would change timezone
+          })
+          .on("drag", function(d) {
+            //d3.select(this)
+            d.lastx = Math.max(0, Math.min(intraDChartWidth - d.origW, d3.event.x));
+            d3.select(this)
+            .attr("x", d.lastx);
+            d3.select(this.parentNode).select(".leftBar")
+            .attr("x", d.lastx);
+            d3.select(this.parentNode).select(".rightBar")
+            .attr("x", d.lastx + d.origW);
+            d3.select(this.parentNode).select(".topBar")
+            .attr("x", d.lastx);
+          })
+          .on("dragend", function(d, i) {
+            //if (d3.event.defaultPrevented) return;still err
+            let minuteChg = Math.sign(d.lastx - d.initx)*Math.abs(d.lastx - d.initx)/unitx;//KCncWy3K3aZp
+            d.stime.setMinutes(d.stime.getMinutes() + minuteChg);
+            d.etime.setMinutes(d.etime.getMinutes() + minuteChg);
+            planSchedule.sort((a,b) => {//TODO actually tried delete and insert, but bug appeared
+              return a.stime - b.stime;
+            })
+            var noOvrLapReducer = (accumulator, currentValue) => accumulator && (currentValue == d || !overlap(d, currentValue))
+            //console.log(planSchedule);
+            var validMove = planSchedule.reduce(noOvrLapReducer, true);
+            if(!validMove){
+              d3.select(this)
+              .attr("x", d.initx);
+              d3.select(this.parentNode).select(".leftBar")
+              .attr("x", d.initx);
+              d3.select(this.parentNode).select(".rightBar")
+              .attr("x", d.initx + d.origW);
+              d3.select(this.parentNode).select(".topBar")
+              .attr("x", d.initx);
+              d.stime.setMinutes(d.stime.getMinutes() - minuteChg);
+              d.etime.setMinutes(d.etime.getMinutes() - minuteChg);
+              planSchedule.sort((a,b) => {//TODO actually tried delete and insert, but bug appeared
+                return a.stime - b.stime;
+              })
+              console.log('overlapping not allowed now!');
+            }
+            console.log(planSchedule);
+          })
+        )
+        .on("mouseover", function(d, i){
+            let stimeStr = getSimpHHMM(d.stime),
+            etimeStr = getSimpHHMM(d.etime);
+            svg.append("text").attr({
+               id: "tshow" + i,  // Create an id for text so we can select it later for removing on mouseout
+                x: function() { return xScale(d.stime)},
+                y: function() { return yScale(d.intensity)}
+            })
+            .text(function() {
+              let dur = Math.round((d.etime - d.stime)/(1000*60)),
+              calConsump = dur*d.intensity;
+              console.log(dur,d.intensity);
+              return `from ${stimeStr} to ${etimeStr}, consuming ${calConsump} calories.`;  // Value of the text
+            });
+        })
+        .on("mouseout", function(d, i){
+            d3.select("#tshow" + i).remove();
+        })
+        .on("dblclick", function(e, i){
+        //  d3.event.preventDefault();
+          //error even if we add above line
+          //d3.event.sourceEvent.stopPropagation();//supress other event
+          planSchedule.splice(i, 1);
+          updateIntraday('redraw');
+        });
+
+    //console.log(newBarGs);
+    newBarGs.append("rect")
+		.attr("class", "leftBar")
+		.attr("x", function(d, i){
+        return xScale(d.stime)
+     })
+		.attr("y", function(d){ return yScale( d.intensity); })
+		.attr("height", function(d,i){
+      return intraDChartHeight - yScale( d.intensity);//100*i//
+     })
+		.attr("width", (d,i)=>{
+      return 2;//100*i
+    })
+		.attr("fill", "rgb(229, 100, 57)")
+    .call(d3.behavior.drag()
+        .origin(function(d) { return {x: xScale(d.stime), y: 0};}) //origin: as if I started dragging at this place
         .on("dragstart", function(d) {
   	        d3.event.sourceEvent.stopPropagation();//supress other event
             d.initx = xScale(d.stime);
+            d.origW = unitx*Math.round((d.etime - d.stime)/(1000*60));
+        //    bakPlan = JSON.parse(JSON.stringify(planSchedule)); // would change timezone
         })
         .on("drag", function(d) {
+          d.lastx = Math.max(0, Math.min(xScale(d.etime), d3.event.x));
           d3.select(this)
-          .attr("x", d.lastx = Math.max(0, Math.min(intraDChartWidth - unitx*Math.round((d.etime - d.stime)/(1000*60)), d3.event.x)));
+          .attr("x", d.lastx);
+          d3.select(this.parentNode).select(".bar")
+          .attr("x", d.lastx)
+          .attr("width", d.origW + d.initx - d.lastx);
+          d3.select(this.parentNode).select(".topBar")
+          .attr("x", d.lastx)
+          .attr("width", d.origW + d.initx - d.lastx);
         })
-        .on("dragend", function(d) {
-          console.log(d.stime, d.etime);
+        .on("dragend", function(d, i) {
+          //if (d3.event.defaultPrevented) return;still err
           let minuteChg = Math.sign(d.lastx - d.initx)*Math.abs(d.lastx - d.initx)/unitx;//KCncWy3K3aZp
-          console.log(minuteChg/60);
           d.stime.setMinutes(d.stime.getMinutes() + minuteChg);
-          d.etime.setMinutes(d.etime.getMinutes() + minuteChg);
-  //        console.log(planSchedule);
+          var noOvrLapReducer = (accumulator, currentValue) => accumulator && (currentValue == d || !overlap(d, currentValue))
+          var validMove = planSchedule.reduce(noOvrLapReducer, true)
+          if(!validMove){
+            d3.select(this)
+            .attr("x", d.initx);
+            d3.select(this.parentNode).select(".bar")
+            .attr("x", d.initx)
+            .attr("width", d.origW);
+            d3.select(this.parentNode).select(".topBar")
+            .attr("x", d.initx)
+            .attr("width", d.origW);
+            d.stime.setMinutes(d.stime.getMinutes() - minuteChg);
+            console.log('overlapping not allowed now!');
+          }
+          console.log(planSchedule);
         })
-      )
-      .on("dblclick", function(e, i){
-        console.log(e,i);
-        planSchedule.splice(i, 1);
-        //bars.exit().remove();
-        updateIntraday('redraw');
-      });
+      );
 
-      bars.exit().remove();
+    newBarGs.append("rect")
+		.attr("class", "rightBar")
+		.attr("x", function(d, i){
+        return xScale(d.etime);
+     })
+		.attr("y", function(d){ return yScale( d.intensity); })
+		.attr("height", function(d,i){
+      return intraDChartHeight - yScale( d.intensity);//100*i//
+     })
+		.attr("width", (d,i)=>{
+      return 2;//100*i
+    })
+		.attr("fill", "rgb(229, 100, 57)")
+    .call(d3.behavior.drag()
+        .origin(function(d) { return {x: xScale(d.etime), y: 0};}) //origin: as if I started dragging at this place
+        .on("dragstart", function(d) {
+  	        d3.event.sourceEvent.stopPropagation();//supress other event
+            d.initx = xScale(d.etime);
+            d.origW = unitx*Math.round((d.etime - d.stime)/(1000*60));
+        //    bakPlan = JSON.parse(JSON.stringify(planSchedule)); // would change timezone
+        })
+        .on("drag", function(d) {
+          d.lastx = Math.max(xScale(d.stime), Math.min(intraDChartWidth, d3.event.x));
+          d3.select(this)
+          .attr("x", d.lastx);
+          d3.select(this.parentNode).select(".bar")
+          .attr("width", d.origW - d.initx + d.lastx);
+          d3.select(this.parentNode).select(".topBar")
+          .attr("width", d.origW - d.initx + d.lastx);
+        })
+        .on("dragend", function(d, i) {
+          //if (d3.event.defaultPrevented) return;still err
+          let minuteChg = Math.sign(d.lastx - d.initx)*Math.abs(d.lastx - d.initx)/unitx;//KCncWy3K3aZp
+          d.etime.setMinutes(d.etime.getMinutes() + minuteChg);
+          var noOvrLapReducer = (accumulator, currentValue) => accumulator && (currentValue == d || !overlap(d, currentValue))
+          var validMove = planSchedule.reduce(noOvrLapReducer, true)
+          if(!validMove){
+            d3.select(this)
+            .attr("x", d.initx);
+            d3.select(this.parentNode).select(".bar")
+            .attr("width", d.origW);
+            d3.select(this.parentNode).select(".topBar")
+            .attr("width", d.origW);
+            d.etime.setMinutes(d.etime.getMinutes() - minuteChg);
+            console.log('overlapping not allowed now!');
+          }
+          console.log(planSchedule);
+        })
+      );
+
+    newBarGs.append("rect")
+		.attr("class", "topBar")
+		.attr("x", function(d, i){
+        return xScale(d.stime)
+     })
+		.attr("y", function(d){ return yScale( d.intensity); })
+		.attr("height", function(d,i){
+      return 4;//100*i//
+     })
+     .attr("width", (d,i)=>{
+       return unitx*Math.round((d.etime - d.stime)/(1000*60))//100*i
+     })
+		.attr("fill", "rgb(229, 100, 57)")
+    .call(d3.behavior.drag()
+        .origin(function(d) { return {x: xScale(d.stime), y: yScale( d.intensity)};}) //origin: as if I started dragging at this place
+        .on("dragstart", function(d) {
+  	        d3.event.sourceEvent.stopPropagation();//supress other event
+            d.inity = yScale(d.intensity);
+        })
+        .on("drag", function(d) {
+          d.lasty = Math.max(0, Math.min(intraDChartHeight, d3.event.y));
+          console.log(d.lasty);
+          d3.select(this)
+          .attr("y", d.lasty);
+          d3.select(this.parentNode).select(".bar")
+          .attr("y", d.lasty)
+          .attr("height", intraDChartHeight - d.lasty);
+          d3.select(this.parentNode).select(".leftBar")
+          .attr("y", d.lasty)
+          .attr("height", intraDChartHeight - d.lasty);
+          d3.select(this.parentNode).select(".rightBar")
+          .attr("y", d.lasty)
+          .attr("height", intraDChartHeight - d.lasty);
+        })
+        .on("dragend", function(d, i) {
+          d.intensity = loc2Intense(d.lasty)
+          if(d.lasty < 0.1*intraDChartHeight){
+            let oldYmax = yScale.domain()[0];
+            yScale.domain([1.1*oldYmax, 0 ]);
+            loc2Intense.range([1.1*oldYmax, 0]);
+            updateIntraday('redraw');
+          }
+          console.log(planSchedule);
+        })
+      );
+
+      group.exit().remove();
   }
 
   var generateLabels = function (user_id) {
@@ -386,11 +597,11 @@ function getPlanFromDBAndRender(){
       //for valueAccessor's sake, must use this instead of reduceSum
   		var calendarGroup = dateDim.group().reduce(
   			(p,v)=>{
-  				p.calAll += v.intensity;
+  				p.calAll += v.intensity * Math.round((v.etime - v.stime)/(1000*60));
   				return p;
   			},
   			(p,v)=>{
-  				p.calAll -= v.intensity;
+  				p.calAll -= v.intensity * Math.round((v.etime - v.stime)/(1000*60));
   				return p;
   			},
   			()=>{
@@ -430,11 +641,12 @@ function getPlanFromDBAndRender(){
 
             }
 
-            let newYmax = d3.max(planSchedule, function(d){
+            let newYmax = 1.1*d3.max(planSchedule, function(d){
               return d.intensity; });
             let defaultYdomain = 10;
             newYmax = newYmax > defaultYdomain ? newYmax : defaultYdomain;
           	yScale.domain([newYmax, 0 ]);
+            loc2Intense.range([newYmax, 0]);
             yAxis.scale(yScale);
 
             updateIntraday('redraw');
